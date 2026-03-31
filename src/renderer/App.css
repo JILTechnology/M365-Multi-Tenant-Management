@@ -16,11 +16,40 @@
   background: #1e1e2e;
   color: #cdd6f4;
   border-right: 1px solid #313244;
+  transition: width 0.2s ease;
+}
+
+.sidebar.collapsed {
+  width: 56px;
 }
 
 .sidebar-header {
-  padding: 1rem 1rem 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
   border-bottom: 1px solid #313244;
+}
+
+.sidebar.collapsed .sidebar-header {
+  justify-content: center;
+}
+
+.sidebar-toggle {
+  background: none;
+  border: none;
+  color: #6c7086;
+  cursor: pointer;
+  font-size: 0.65rem;
+  padding: 4px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.sidebar-toggle:hover {
+  background: #313244;
+  color: #cdd6f4;
 }
 
 .sidebar-header h2 {
@@ -52,6 +81,31 @@
   font-size: 0.875rem;
   border-left: 3px solid transparent;
   transition: background 0.15s, border-color 0.15s;
+}
+
+.sidebar.collapsed .sidebar-item {
+  justify-content: center;
+  padding: 0.5rem;
+  border-left: none;
+}
+
+.sidebar-item-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+  letter-spacing: 0.02em;
+}
+
+.sidebar.collapsed .sidebar-item.active .sidebar-item-avatar {
+  outline: 2px solid #89b4fa;
+  outline-offset: 2px;
 }
 
 .sidebar-item:hover {
@@ -102,9 +156,173 @@
   border: 1px dashed #45475a;
   border-radius: 6px;
   background: none;
-  color: #6c7086;
-  cursor: not-allowed;
+  color: #a6adc8;
+  cursor: pointer;
   font-size: 0.8rem;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.sidebar-add-btn:hover {
+  border-color: #89b4fa;
+  color: #89b4fa;
+}
+
+.sidebar.collapsed .sidebar-add-btn {
+  font-size: 1.1rem;
+  font-weight: 600;
+  padding: 0.25rem;
+  line-height: 1;
+}
+
+.sidebar-empty {
+  padding: 1rem;
+  text-align: center;
+  color: #6c7086;
+  font-size: 0.8rem;
+}
+
+/* --- Sidebar Item Wrapper (for menu positioning) --- */
+
+.sidebar-item-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.sidebar-item-wrapper .sidebar-item {
+  flex: 1;
+  min-width: 0;
+}
+
+.sidebar-item-menu-container {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.sidebar-item-menu-btn {
+  background: none;
+  border: none;
+  color: #6c7086;
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.sidebar-item-wrapper:hover .sidebar-item-menu-btn,
+.sidebar-item-menu-btn:focus {
+  opacity: 1;
+}
+
+.sidebar-item-menu-btn:hover {
+  background: #45475a;
+  color: #cdd6f4;
+}
+
+.sidebar-item-menu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  background: #313244;
+  border: 1px solid #45475a;
+  border-radius: 6px;
+  overflow: hidden;
+  z-index: 10;
+  min-width: 100px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar-item-menu button {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  background: none;
+  color: #cdd6f4;
+  cursor: pointer;
+  font-size: 0.8rem;
+  text-align: left;
+}
+
+.sidebar-item-menu button:hover {
+  background: #45475a;
+}
+
+.sidebar-item-menu button.danger {
+  color: #f38ba8;
+}
+
+.sidebar-item-menu button.danger:hover {
+  background: #45475a;
+}
+
+/* --- Tenant Forms --- */
+
+.sidebar-form-wrapper {
+  padding: 0.25rem 0.75rem;
+}
+
+.tenant-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.tenant-form input {
+  width: 100%;
+  padding: 0.375rem 0.5rem;
+  background: #313244;
+  border: 1px solid #45475a;
+  border-radius: 4px;
+  color: #cdd6f4;
+  font-size: 0.8rem;
+  outline: none;
+}
+
+.tenant-form input:focus {
+  border-color: #89b4fa;
+}
+
+.tenant-form input::placeholder {
+  color: #6c7086;
+}
+
+.tenant-form-actions {
+  display: flex;
+  gap: 0.375rem;
+}
+
+.tenant-form .btn-save {
+  flex: 1;
+  padding: 0.375rem;
+  border: none;
+  border-radius: 4px;
+  background: #89b4fa;
+  color: #1e1e2e;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tenant-form .btn-save:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.tenant-form .btn-cancel {
+  flex: 1;
+  padding: 0.375rem;
+  border: 1px solid #45475a;
+  border-radius: 4px;
+  background: none;
+  color: #a6adc8;
+  font-size: 0.75rem;
+  cursor: pointer;
 }
 
 /* --- Main Area --- */

@@ -9,11 +9,14 @@ const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
     name: 'M365 Multi Tenant Management',
+    icon: './assets/icon',
   },
   rebuildConfig: {},
   makers: [
     new MakerSquirrel({
       name: 'M365MultiTenantManagement',
+      iconUrl: 'https://raw.githubusercontent.com/JILTechnology/M365-Multi-Tenant-Management/master/assets/icon.ico',
+      setupIcon: './assets/icon.ico',
     }),
     new MakerZIP({}, ['darwin']),
   ],

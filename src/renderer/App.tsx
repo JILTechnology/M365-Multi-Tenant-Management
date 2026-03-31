@@ -8,12 +8,19 @@ function App() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [activeTenantId, setActiveTenantId] = useState<string | null>(null);
   const [activePortalId, setActivePortalId] = useState<PortalId>('admin');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
+
+  const refreshTenants = useCallback(async () => {
+    const list = await window.electronAPI.getTenants();
+    setTenants(list);
+    return list;
+  }, []);
 
   // Load tenants on mount
   useEffect(() => {
-    window.electronAPI.getTenants().then(setTenants);
-  }, []);
+    refreshTenants();
+  }, [refreshTenants]);
 
   // Report content area bounds to main process via ResizeObserver
   const sendBounds = useCallback(() => {
@@ -33,7 +40,7 @@ function App() {
 
     const observer = new ResizeObserver(sendBounds);
     observer.observe(el);
-    sendBounds(); // Send initial bounds
+    sendBounds();
 
     return () => observer.disconnect();
   }, [sendBounds]);
@@ -41,7 +48,6 @@ function App() {
   const handleSelectTenant = useCallback((tenantId: string) => {
     setActiveTenantId(tenantId);
     setActivePortalId('admin');
-    // Small delay to let React render and ResizeObserver fire first
     requestAnimationFrame(() => {
       window.electronAPI.selectTenant(tenantId, 'admin');
     });
@@ -53,12 +59,42 @@ function App() {
     window.electronAPI.selectTenant(activeTenantId, portalId);
   }, [activeTenantId]);
 
+  const handleAddTenant = useCallback(async (name: string, domain: string) => {
+    const tenant = await window.electronAPI.addTenant({ name, domain });
+    await refreshTenants();
+    // Auto-select the new tenant
+    handleSelectTenant(tenant.id);
+  }, [refreshTenants, handleSelectTenant]);
+
+  const handleUpdateTenant = useCallback(async (id: string, name: string, domain: string) => {
+    await window.electronAPI.updateTenant(id, { name, domain });
+    await refreshTenants();
+  }, [refreshTenants]);
+
+  const handleRemoveTenant = useCallback(async (id: string) => {
+    await window.electronAPI.removeTenant(id);
+    const list = await refreshTenants();
+    // If we removed the active tenant, clear selection
+    if (activeTenantId === id) {
+      if (list.length > 0) {
+        handleSelectTenant(list[0].id);
+      } else {
+        setActiveTenantId(null);
+      }
+    }
+  }, [activeTenantId, refreshTenants, handleSelectTenant]);
+
   return (
     <div className="app">
       <Sidebar
         tenants={tenants}
         activeTenantId={activeTenantId}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
         onSelectTenant={handleSelectTenant}
+        onAddTenant={handleAddTenant}
+        onUpdateTenant={handleUpdateTenant}
+        onRemoveTenant={handleRemoveTenant}
       />
       <div className="main-area">
         {activeTenantId ? (
@@ -70,7 +106,11 @@ function App() {
         <div className="content-area" ref={contentRef}>
           {!activeTenantId && (
             <div className="content-placeholder">
-              <p>Select a tenant from the sidebar to get started.</p>
+              <p>
+                {tenants.length === 0
+                  ? 'Add a tenant to get started.'
+                  : 'Select a tenant from the sidebar.'}
+              </p>
             </div>
           )}
         </div>
