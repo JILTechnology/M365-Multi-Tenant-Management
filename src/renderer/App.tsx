@@ -2,13 +2,15 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import Sidebar from './components/Sidebar';
 import TabBar from './components/TabBar';
 import NavBar from './components/NavBar';
-import type { Tenant, PortalId, NavState } from '../types/index';
+import { PORTAL_IDS } from '../types/index';
+import type { Tenant, ToolSite, PortalId, NavState } from '../types/index';
 import './App.css';
 
 const EMPTY_NAV: NavState = { canGoBack: false, canGoForward: false, isLoading: false, url: '' };
 
 function App() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [tools, setTools] = useState<ToolSite[]>([]);
   const [activeTenantId, setActiveTenantId] = useState<string | null>(null);
   const [activeToolId, setActiveToolId] = useState<string | null>(null);
   const [activePortalId, setActivePortalId] = useState<PortalId>('admin');
@@ -22,9 +24,16 @@ function App() {
     return list;
   }, []);
 
+  const refreshTools = useCallback(async () => {
+    const list = await window.electronAPI.getTools();
+    setTools(list);
+    return list;
+  }, []);
+
   useEffect(() => {
     refreshTenants();
-  }, [refreshTenants]);
+    refreshTools();
+  }, [refreshTenants, refreshTools]);
 
   useEffect(() => {
     const cleanup = window.electronAPI.onNavState(setNavState);
@@ -74,6 +83,42 @@ function App() {
     window.electronAPI.selectTenant(activeTenantId, portalId);
   }, [activeTenantId]);
 
+  // Keyboard shortcuts: Ctrl+1-8 for portal tabs, Ctrl+Tab / Ctrl+Shift+Tab for tenant cycling
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!e.ctrlKey) return;
+
+      // Ctrl+1 through Ctrl+8 — switch portal tab
+      const digit = parseInt(e.key, 10);
+      if (digit >= 1 && digit <= 8) {
+        const index = digit - 1;
+        if (activeTenantId && index < PORTAL_IDS.length) {
+          e.preventDefault();
+          handleSelectPortal(PORTAL_IDS[index]);
+        }
+        return;
+      }
+
+      // Ctrl+Tab / Ctrl+Shift+Tab — cycle tenants
+      if (e.key === 'Tab' && tenants.length > 0) {
+        e.preventDefault();
+        const currentIndex = tenants.findIndex((t) => t.id === activeTenantId);
+        let nextIndex: number;
+        if (e.shiftKey) {
+          // Previous tenant
+          nextIndex = currentIndex <= 0 ? tenants.length - 1 : currentIndex - 1;
+        } else {
+          // Next tenant
+          nextIndex = currentIndex >= tenants.length - 1 ? 0 : currentIndex + 1;
+        }
+        handleSelectTenant(tenants[nextIndex].id);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [activeTenantId, tenants, handleSelectPortal, handleSelectTenant]);
+
   const handleAddTenant = useCallback(async (name: string, domain: string) => {
     const tenant = await window.electronAPI.addTenant({ name, domain });
     await refreshTenants();
@@ -84,6 +129,10 @@ function App() {
     await window.electronAPI.updateTenant(id, { name, domain });
     await refreshTenants();
   }, [refreshTenants]);
+
+  const handleClearSession = useCallback(async (id: string) => {
+    await window.electronAPI.clearTenantSession(id);
+  }, []);
 
   const handleRemoveTenant = useCallback(async (id: string) => {
     await window.electronAPI.removeTenant(id);
@@ -98,12 +147,28 @@ function App() {
     }
   }, [activeTenantId, refreshTenants, handleSelectTenant]);
 
+  const handleAddTool = useCallback(async (label: string, url: string) => {
+    const tool = await window.electronAPI.addTool({ label, url });
+    await refreshTools();
+    handleSelectTool(tool.id);
+  }, [refreshTools, handleSelectTool]);
+
+  const handleRemoveTool = useCallback(async (id: string) => {
+    await window.electronAPI.removeTool(id);
+    await refreshTools();
+    if (activeToolId === id) {
+      setActiveToolId(null);
+      setNavState(EMPTY_NAV);
+    }
+  }, [activeToolId, refreshTools]);
+
   const hasActiveView = activeTenantId || activeToolId;
 
   return (
     <div className="app">
       <Sidebar
         tenants={tenants}
+        tools={tools}
         activeTenantId={activeTenantId}
         activeToolId={activeToolId}
         collapsed={sidebarCollapsed}
@@ -113,6 +178,9 @@ function App() {
         onAddTenant={handleAddTenant}
         onUpdateTenant={handleUpdateTenant}
         onRemoveTenant={handleRemoveTenant}
+        onClearSession={handleClearSession}
+        onAddTool={handleAddTool}
+        onRemoveTool={handleRemoveTool}
       />
       <div className="main-area">
         {activeTenantId ? (

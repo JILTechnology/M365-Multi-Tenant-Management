@@ -75,6 +75,53 @@
   color: #6c7086;
 }
 
+.sidebar-tools-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 1rem 0.25rem;
+}
+
+.sidebar-tools-add-btn {
+  background: none;
+  border: none;
+  color: #6c7086;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0 4px;
+  border-radius: 4px;
+  line-height: 1;
+}
+
+.sidebar-tools-add-btn:hover {
+  background: #313244;
+  color: #89b4fa;
+}
+
+.sidebar-search {
+  padding: 0.25rem 0.75rem;
+}
+
+.sidebar-search input {
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  background: #313244;
+  border: 1px solid #45475a;
+  border-radius: 4px;
+  color: #cdd6f4;
+  font-size: 0.75rem;
+  outline: none;
+}
+
+.sidebar-search input:focus {
+  border-color: #89b4fa;
+}
+
+.sidebar-search input::placeholder {
+  color: #585b70;
+}
+
 .sidebar-list {
   flex: 1;
   overflow-y: auto;

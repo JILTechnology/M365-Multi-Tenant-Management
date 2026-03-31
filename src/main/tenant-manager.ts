@@ -1,4 +1,4 @@
-import { BrowserWindow, WebContentsView } from 'electron';
+import { BrowserWindow, Menu, WebContentsView, clipboard, session, shell } from 'electron';
 import {
   type PortalId,
   type ViewKey,
@@ -6,12 +6,11 @@ import {
   type NavState,
   IPC_CHANNELS,
   PORTAL_IDS,
-  TOOL_SITES,
   makeViewKey,
   makeToolViewKey,
   resolvePortalUrl,
 } from '../types/index';
-import { getTenants } from './store';
+import { getTenants, getTools } from './store';
 
 export class TenantViewManager {
   private views = new Map<ViewKey, WebContentsView>();
@@ -65,7 +64,7 @@ export class TenantViewManager {
 
     // Create the tool view if it doesn't exist
     if (!this.views.has(key)) {
-      const tool = TOOL_SITES.find((t) => t.id === toolId);
+      const tool = getTools().find((t) => t.id === toolId);
       if (!tool) return;
       this.createToolView(tool.id, tool.url);
     }
@@ -121,6 +120,25 @@ export class TenantViewManager {
         this.views.delete(key);
       }
     }
+  }
+
+  destroyToolView(toolId: string): void {
+    const key = makeToolViewKey(toolId);
+    const view = this.views.get(key);
+    if (view) {
+      if (this.activeViewKey === key) {
+        this.activeViewKey = null;
+      }
+      view.setVisible(false);
+      this.mainWindow.contentView.removeChildView(view);
+      view.webContents.close();
+      this.views.delete(key);
+    }
+  }
+
+  async clearTenantSession(tenantId: string): Promise<void> {
+    this.destroyTenantViews(tenantId);
+    await session.fromPartition(`persist:tenant-${tenantId}`).clearStorageData();
   }
 
   destroyAll(): void {
@@ -206,6 +224,42 @@ export class TenantViewManager {
     });
   }
 
+  private setupContextMenu(view: WebContentsView): void {
+    view.webContents.on('context-menu', (_event, params) => {
+      const wc = view.webContents;
+      const url = wc.getURL();
+
+      const menu = Menu.buildFromTemplate([
+        {
+          label: 'Back',
+          enabled: wc.canGoBack(),
+          click: () => wc.goBack(),
+        },
+        {
+          label: 'Forward',
+          enabled: wc.canGoForward(),
+          click: () => wc.goForward(),
+        },
+        { type: 'separator' },
+        {
+          label: 'Reload',
+          click: () => wc.reload(),
+        },
+        { type: 'separator' },
+        {
+          label: 'Copy URL',
+          click: () => clipboard.writeText(url),
+        },
+        {
+          label: 'Open in External Browser',
+          click: () => shell.openExternal(url),
+        },
+      ]);
+
+      menu.popup();
+    });
+  }
+
   private createTenantViews(tenantId: string, domain: string): void {
     const partition = `persist:tenant-${tenantId}`;
 
@@ -228,6 +282,7 @@ export class TenantViewManager {
 
       this.setupZoom(view);
       this.setupNavEvents(view);
+      this.setupContextMenu(view);
 
       this.views.set(key, view);
     }
@@ -252,6 +307,7 @@ export class TenantViewManager {
 
     this.setupZoom(view);
     this.setupNavEvents(view);
+    this.setupContextMenu(view);
 
     this.views.set(key, view);
   }

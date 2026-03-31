@@ -59,6 +59,13 @@ export const TOOL_SITES: ToolSite[] = [
   { id: 'pax8', label: 'Pax8', url: 'https://app.pax8.com/' },
 ];
 
+// --- Tool Input ---
+
+export interface ToolInput {
+  label: string;
+  url: string;
+}
+
 // --- Tenant Definitions ---
 
 export interface Tenant {
@@ -92,13 +99,18 @@ export const IPC_CHANNELS = {
   TENANT_ADD: 'tenant:add',
   TENANT_UPDATE: 'tenant:update',
   TENANT_REMOVE: 'tenant:remove',
+  TENANT_CLEAR_SESSION: 'tenant:clear-session',
   TENANT_SELECT: 'tenant:select',
+  TOOL_GET_ALL: 'tool:get-all',
+  TOOL_ADD: 'tool:add',
+  TOOL_REMOVE: 'tool:remove',
   TOOL_SELECT: 'tool:select',
   LAYOUT_UPDATE: 'layout:update',
   NAV_BACK: 'nav:back',
   NAV_FORWARD: 'nav:forward',
   NAV_RELOAD: 'nav:reload',
   NAV_STATE: 'nav:state',
+  CHECK_FOR_UPDATES: 'app:check-updates',
 } as const;
 
 // --- Navigation State ---
@@ -127,13 +139,18 @@ export interface ElectronAPI {
   addTenant(input: TenantInput): Promise<Tenant>;
   updateTenant(id: string, input: TenantInput): Promise<Tenant>;
   removeTenant(id: string): Promise<void>;
+  clearTenantSession(id: string): Promise<void>;
   selectTenant(tenantId: string, portalId: PortalId): void;
+  getTools(): Promise<ToolSite[]>;
+  addTool(input: ToolInput): Promise<ToolSite>;
+  removeTool(id: string): Promise<void>;
   selectTool(toolId: string): void;
   updateLayout(contentBounds: ContentBounds): void;
   navBack(): void;
   navForward(): void;
   navReload(): void;
   onNavState(callback: (state: NavState) => void): () => void;
+  checkForUpdates(): void;
 }
 
 declare global {

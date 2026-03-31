@@ -1,11 +1,11 @@
-import { app, BrowserWindow, ipcMain, Menu } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, dialog, shell } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 import { updateElectronApp } from 'update-electron-app';
 import { TenantViewManager } from './tenant-manager';
-import { getTenants, addTenant, updateTenant, removeTenant } from './store';
+import { getTenants, addTenant, updateTenant, removeTenant, getTools, addTool, removeTool, getWindowState, saveWindowState } from './store';
 import { IPC_CHANNELS } from '../types/index';
-import type { PortalId, ContentBounds, TenantInput } from '../types/index';
+import type { PortalId, ContentBounds, TenantInput, ToolInput } from '../types/index';
 
 // Auto-update from GitHub Releases (only runs in packaged builds)
 updateElectronApp();
@@ -28,10 +28,14 @@ function getManager(event: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent):
 }
 
 const createWindow = (): void => {
+  const windowState = getWindowState();
+
   const mainWindow = new BrowserWindow({
     icon: path.join(__dirname, '../../assets/icon.ico'),
-    width: 1200,
-    height: 800,
+    x: windowState.x,
+    y: windowState.y,
+    width: windowState.width,
+    height: windowState.height,
     minWidth: 800,
     minHeight: 600,
     webPreferences: {
@@ -41,8 +45,24 @@ const createWindow = (): void => {
     },
   });
 
+  if (windowState.isMaximized) {
+    mainWindow.maximize();
+  }
+
   const manager = new TenantViewManager(mainWindow);
   managers.set(mainWindow.id, manager);
+
+  mainWindow.on('close', () => {
+    const isMaximized = mainWindow.isMaximized();
+    const bounds = mainWindow.getNormalBounds();
+    saveWindowState({
+      x: bounds.x,
+      y: bounds.y,
+      width: bounds.width,
+      height: bounds.height,
+      isMaximized,
+    });
+  });
 
   mainWindow.on('closed', () => {
     manager.destroyAll();
@@ -85,6 +105,10 @@ ipcMain.handle(IPC_CHANNELS.TENANT_REMOVE, (event, id: string) => {
   removeTenant(id);
 });
 
+ipcMain.handle(IPC_CHANNELS.TENANT_CLEAR_SESSION, async (event, id: string) => {
+  await getManager(event)?.clearTenantSession(id);
+});
+
 ipcMain.on(
   IPC_CHANNELS.TENANT_SELECT,
   (event, payload: { tenantId: string; portalId: PortalId }) => {
@@ -99,12 +123,44 @@ ipcMain.on(
   }
 );
 
+ipcMain.handle(IPC_CHANNELS.TOOL_GET_ALL, () => {
+  return getTools();
+});
+
+ipcMain.handle(IPC_CHANNELS.TOOL_ADD, (_event, input: ToolInput) => {
+  return addTool(input);
+});
+
+ipcMain.handle(IPC_CHANNELS.TOOL_REMOVE, (event, id: string) => {
+  getManager(event)?.destroyToolView(id);
+  removeTool(id);
+});
+
 ipcMain.on(
   IPC_CHANNELS.TOOL_SELECT,
   (event, toolId: string) => {
     getManager(event)?.selectTool(toolId);
   }
 );
+
+// --- Check for Updates ---
+
+ipcMain.on(IPC_CHANNELS.CHECK_FOR_UPDATES, (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win) return;
+  dialog.showMessageBox(win, {
+    type: 'info',
+    title: 'Check for Updates',
+    message: `Current version: ${app.getVersion()}`,
+    detail: 'Click "Check" to view available updates on GitHub.',
+    buttons: ['Check', 'Cancel'],
+    defaultId: 0,
+  }).then(({ response }) => {
+    if (response === 0) {
+      shell.openExternal('https://github.com/JILTechnology/M365-Multi-Tenant-Management/releases');
+    }
+  });
+});
 
 // --- Navigation ---
 

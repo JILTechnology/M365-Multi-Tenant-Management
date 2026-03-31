@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
-import type { Tenant } from '../../types/index';
-import { TOOL_SITES } from '../../types/index';
+import type { Tenant, ToolSite } from '../../types/index';
 import AddTenantForm from './AddTenantForm';
 import EditTenantForm from './EditTenantForm';
 
 interface SidebarProps {
   tenants: Tenant[];
+  tools: ToolSite[];
   activeTenantId: string | null;
   activeToolId: string | null;
   collapsed: boolean;
@@ -15,6 +15,9 @@ interface SidebarProps {
   onAddTenant: (name: string, domain: string) => void;
   onUpdateTenant: (id: string, name: string, domain: string) => void;
   onRemoveTenant: (id: string) => void;
+  onClearSession: (id: string) => void;
+  onAddTool: (label: string, url: string) => void;
+  onRemoveTool: (id: string) => void;
 }
 
 function getTenantColor(id: string): string {
@@ -38,6 +41,7 @@ function getInitials(name: string): string {
 
 export default function Sidebar({
   tenants,
+  tools,
   activeTenantId,
   activeToolId,
   collapsed,
@@ -47,30 +51,46 @@ export default function Sidebar({
   onAddTenant,
   onUpdateTenant,
   onRemoveTenant,
+  onClearSession,
+  onAddTool,
+  onRemoveTool,
 }: SidebarProps) {
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showAddToolForm, setShowAddToolForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [toolMenuOpenId, setToolMenuOpenId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [toolLabel, setToolLabel] = useState('');
+  const [toolUrl, setToolUrl] = useState('');
   const menuRef = useRef<HTMLDivElement>(null);
+  const toolMenuRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Close menu when clicking outside
   useEffect(() => {
-    if (!menuOpenId) return;
+    if (!menuOpenId && !toolMenuOpenId) return;
     const handleClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      if (menuOpenId && menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setMenuOpenId(null);
+      }
+      if (toolMenuOpenId && toolMenuRef.current && !toolMenuRef.current.contains(e.target as Node)) {
+        setToolMenuOpenId(null);
       }
     };
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
-  }, [menuOpenId]);
+  }, [menuOpenId, toolMenuOpenId]);
 
   // Close forms when collapsing
   useEffect(() => {
     if (collapsed) {
       setShowAddForm(false);
+      setShowAddToolForm(false);
       setEditingId(null);
       setMenuOpenId(null);
+      setToolMenuOpenId(null);
+      setSearchQuery('');
     }
   }, [collapsed]);
 
@@ -89,6 +109,29 @@ export default function Sidebar({
     onRemoveTenant(id);
   };
 
+  const handleAddToolSave = () => {
+    const trimmedLabel = toolLabel.trim();
+    const trimmedUrl = toolUrl.trim();
+    if (!trimmedLabel || !trimmedUrl) return;
+    onAddTool(trimmedLabel, trimmedUrl);
+    setToolLabel('');
+    setToolUrl('');
+    setShowAddToolForm(false);
+  };
+
+  const handleRemoveTool = (id: string) => {
+    setToolMenuOpenId(null);
+    onRemoveTool(id);
+  };
+
+  // Filter tenants by search query
+  const filteredTenants = searchQuery
+    ? tenants.filter((t) => {
+        const q = searchQuery.toLowerCase();
+        return t.name.toLowerCase().includes(q) || t.domain.toLowerCase().includes(q);
+      })
+    : tenants;
+
   return (
     <div className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
       <div className="sidebar-header">
@@ -98,32 +141,141 @@ export default function Sidebar({
         {!collapsed && <h2>Tenants</h2>}
       </div>
       <div className="sidebar-tools">
-        {TOOL_SITES.map((tool) => (
-          <button
-            key={tool.id}
-            className={`sidebar-item ${activeToolId === tool.id ? 'active' : ''}`}
-            onClick={() => onSelectTool(tool.id)}
-            title={collapsed ? tool.label : undefined}
-          >
-            {collapsed ? (
-              <span className="sidebar-item-avatar" style={{ backgroundColor: '#f97316' }}>
-                {tool.label.slice(0, 2).toUpperCase()}
-              </span>
-            ) : (
-              <>
-                <span className="sidebar-item-dot" style={{ backgroundColor: '#f97316' }} />
-                <div className="sidebar-item-text">
-                  <span className="sidebar-item-name">{tool.label}</span>
-                  <span className="sidebar-item-domain">{tool.url.replace('https://', '')}</span>
-                </div>
-              </>
+        {!collapsed && (
+          <div className="sidebar-tools-header">
+            <span className="sidebar-section-label" style={{ padding: 0 }}>Tools</span>
+            <button
+              className="sidebar-tools-add-btn"
+              onClick={() => setShowAddToolForm(!showAddToolForm)}
+              title="Add Tool"
+            >
+              +
+            </button>
+          </div>
+        )}
+        {!collapsed && showAddToolForm && (
+          <div className="sidebar-form-wrapper">
+            <div className="tenant-form">
+              <input
+                autoFocus
+                placeholder="Label"
+                value={toolLabel}
+                onChange={(e) => setToolLabel(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setShowAddToolForm(false);
+                    setToolLabel('');
+                    setToolUrl('');
+                  }
+                }}
+              />
+              <input
+                placeholder="URL (https://...)"
+                value={toolUrl}
+                onChange={(e) => setToolUrl(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleAddToolSave();
+                  if (e.key === 'Escape') {
+                    setShowAddToolForm(false);
+                    setToolLabel('');
+                    setToolUrl('');
+                  }
+                }}
+              />
+              <div className="tenant-form-actions">
+                <button
+                  className="btn-save"
+                  disabled={!toolLabel.trim() || !toolUrl.trim()}
+                  onClick={handleAddToolSave}
+                >
+                  Add
+                </button>
+                <button
+                  className="btn-cancel"
+                  onClick={() => {
+                    setShowAddToolForm(false);
+                    setToolLabel('');
+                    setToolUrl('');
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {tools.map((tool) => (
+          <div key={tool.id} className="sidebar-item-wrapper">
+            <button
+              className={`sidebar-item ${activeToolId === tool.id ? 'active' : ''}`}
+              onClick={() => onSelectTool(tool.id)}
+              title={collapsed ? tool.label : undefined}
+            >
+              {collapsed ? (
+                <span className="sidebar-item-avatar" style={{ backgroundColor: '#f97316' }}>
+                  {tool.label.slice(0, 2).toUpperCase()}
+                </span>
+              ) : (
+                <>
+                  <span className="sidebar-item-dot" style={{ backgroundColor: '#f97316' }} />
+                  <div className="sidebar-item-text">
+                    <span className="sidebar-item-name">{tool.label}</span>
+                    <span className="sidebar-item-domain">{tool.url.replace('https://', '')}</span>
+                  </div>
+                </>
+              )}
+            </button>
+            {!collapsed && (
+              <div className="sidebar-item-menu-container">
+                <button
+                  className="sidebar-item-menu-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setToolMenuOpenId(toolMenuOpenId === tool.id ? null : tool.id);
+                  }}
+                >
+                  ...
+                </button>
+                {toolMenuOpenId === tool.id && (
+                  <div className="sidebar-item-menu" ref={toolMenuRef}>
+                    <button
+                      className="danger"
+                      onClick={() => handleRemoveTool(tool.id)}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
-          </button>
+          </div>
         ))}
+        {tools.length === 0 && !showAddToolForm && !collapsed && (
+          <div className="sidebar-empty" style={{ padding: '0.5rem 1rem' }}>
+            No tools yet.
+          </div>
+        )}
       </div>
       {!collapsed && <div className="sidebar-section-label">Tenants</div>}
+      {!collapsed && (
+        <div className="sidebar-search">
+          <input
+            ref={searchInputRef}
+            type="text"
+            placeholder="Search tenants..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                setSearchQuery('');
+                searchInputRef.current?.blur();
+              }
+            }}
+          />
+        </div>
+      )}
       <div className="sidebar-list">
-        {tenants.map((tenant) =>
+        {filteredTenants.map((tenant) =>
           !collapsed && editingId === tenant.id ? (
             <div key={tenant.id} className="sidebar-form-wrapper">
               <EditTenantForm
@@ -181,6 +333,14 @@ export default function Sidebar({
                         Edit
                       </button>
                       <button
+                        onClick={() => {
+                          setMenuOpenId(null);
+                          onClearSession(tenant.id);
+                        }}
+                      >
+                        Clear Session
+                      </button>
+                      <button
                         className="danger"
                         onClick={() => handleRemove(tenant.id)}
                       >
@@ -192,6 +352,11 @@ export default function Sidebar({
               )}
             </div>
           )
+        )}
+        {filteredTenants.length === 0 && searchQuery && !collapsed && (
+          <div className="sidebar-empty">
+            No matching tenants.
+          </div>
         )}
         {tenants.length === 0 && !showAddForm && !collapsed && (
           <div className="sidebar-empty">
@@ -215,6 +380,25 @@ export default function Sidebar({
             title="Add Tenant"
           >
             {collapsed ? '+' : '+ Add Tenant'}
+          </button>
+        )}
+        {!collapsed && (
+          <button
+            className="sidebar-update-link"
+            onClick={() => window.electronAPI.checkForUpdates()}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#6c7086',
+              fontSize: '0.7rem',
+              cursor: 'pointer',
+              padding: '4px 0',
+              marginTop: '4px',
+              textAlign: 'center',
+              width: '100%',
+            }}
+          >
+            Check for Updates
           </button>
         )}
       </div>
