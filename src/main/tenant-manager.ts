@@ -1,4 +1,6 @@
-import { BrowserWindow, Menu, WebContentsView, clipboard, session, shell } from 'electron';
+import { app, BrowserWindow, Menu, WebContentsView, clipboard, session, shell } from 'electron';
+import path from 'node:path';
+import fs from 'node:fs';
 import {
   type PortalId,
   type ViewKey,
@@ -12,11 +14,39 @@ import {
 } from '../types/index';
 import { getTenants, getTools } from './store';
 
+// Find Chrome extensions to load into sessions
+function findExtensionPaths(): string[] {
+  const paths: string[] = [];
+  const chromeExtDir = path.join(
+    app.getPath('home'),
+    'AppData/Local/Google/Chrome/User Data/Default/Extensions'
+  );
+  if (!fs.existsSync(chromeExtDir)) return paths;
+
+  // Look for Keeper (and any other extensions we want to support)
+  const keeperId = 'bfogiafebfohielmmehodmfbbebbbpei';
+  const keeperDir = path.join(chromeExtDir, keeperId);
+  if (fs.existsSync(keeperDir)) {
+    // Get the latest version directory
+    const versions = fs.readdirSync(keeperDir).filter((d) =>
+      fs.statSync(path.join(keeperDir, d)).isDirectory() && d !== 'Temp'
+    );
+    if (versions.length > 0) {
+      versions.sort();
+      paths.push(path.join(keeperDir, versions[versions.length - 1]));
+    }
+  }
+  return paths;
+}
+
+const extensionPaths = findExtensionPaths();
+
 export class TenantViewManager {
   private views = new Map<ViewKey, WebContentsView>();
   private activeViewKey: ViewKey | null = null;
   private currentBounds: ContentBounds = { x: 0, y: 0, width: 0, height: 0 };
   private mainWindow: BrowserWindow;
+  private loadedPartitions = new Set<string>();
 
   constructor(mainWindow: BrowserWindow) {
     this.mainWindow = mainWindow;
@@ -260,8 +290,23 @@ export class TenantViewManager {
     });
   }
 
+  private async loadExtensions(partition: string): Promise<void> {
+    if (this.loadedPartitions.has(partition)) return;
+    this.loadedPartitions.add(partition);
+
+    const ses = session.fromPartition(partition);
+    for (const extPath of extensionPaths) {
+      try {
+        await ses.loadExtension(extPath, { allowFileAccess: false });
+      } catch {
+        // Extension may not be compatible — skip silently
+      }
+    }
+  }
+
   private createTenantViews(tenantId: string, domain: string): void {
     const partition = `persist:tenant-${tenantId}`;
+    this.loadExtensions(partition);
 
     for (const portalId of PORTAL_IDS) {
       const key = makeViewKey(tenantId, portalId);
@@ -292,9 +337,12 @@ export class TenantViewManager {
     const key = makeToolViewKey(toolId);
     if (this.views.has(key)) return;
 
+    const partition = `persist:tool-${toolId}`;
+    this.loadExtensions(partition);
+
     const view = new WebContentsView({
       webPreferences: {
-        partition: `persist:tool-${toolId}`,
+        partition,
         contextIsolation: true,
         nodeIntegration: false,
       },
