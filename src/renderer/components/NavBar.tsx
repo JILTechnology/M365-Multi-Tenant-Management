@@ -35,6 +35,13 @@ export default function NavBar({ navState }: NavBarProps) {
       <div className="nav-url" title={navState.url}>
         {navState.url}
       </div>
+      <button
+        className="nav-btn nav-keeper-btn"
+        onClick={() => window.electronAPI.openExtensionPopup()}
+        title="Keeper Password Manager"
+      >
+        🔑
+      </button>
       {navState.isLoading && <div className="nav-loading-bar" />}
     </div>
   );

@@ -111,6 +111,7 @@ export const IPC_CHANNELS = {
   NAV_RELOAD: 'nav:reload',
   NAV_STATE: 'nav:state',
   CHECK_FOR_UPDATES: 'app:check-updates',
+  OPEN_EXTENSION_POPUP: 'ext:open-popup',
 } as const;
 
 // --- Navigation State ---
@@ -151,6 +152,7 @@ export interface ElectronAPI {
   navReload(): void;
   onNavState(callback: (state: NavState) => void): () => void;
   checkForUpdates(): void;
+  openExtensionPopup(): void;
 }
 
 declare global {

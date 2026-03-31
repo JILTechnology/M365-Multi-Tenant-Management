@@ -63,4 +63,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   checkForUpdates: (): void => {
     ipcRenderer.send(IPC_CHANNELS.CHECK_FOR_UPDATES);
   },
+
+  openExtensionPopup: (): void => {
+    ipcRenderer.send(IPC_CHANNELS.OPEN_EXTENSION_POPUP);
+  },
 });

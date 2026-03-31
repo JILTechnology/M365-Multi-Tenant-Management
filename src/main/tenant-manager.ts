@@ -14,7 +14,8 @@ import {
 } from '../types/index';
 import { getTenants, getTools } from './store';
 
-// Find Chrome extensions to load into sessions
+// --- Extension Discovery ---
+
 function findExtensionPaths(): string[] {
   const paths: string[] = [];
   const chromeExtDir = path.join(
@@ -23,11 +24,10 @@ function findExtensionPaths(): string[] {
   );
   if (!fs.existsSync(chromeExtDir)) return paths;
 
-  // Look for Keeper (and any other extensions we want to support)
+  // Keeper Password Manager
   const keeperId = 'bfogiafebfohielmmehodmfbbebbbpei';
   const keeperDir = path.join(chromeExtDir, keeperId);
   if (fs.existsSync(keeperDir)) {
-    // Get the latest version directory
     const versions = fs.readdirSync(keeperDir).filter((d) =>
       fs.statSync(path.join(keeperDir, d)).isDirectory() && d !== 'Temp'
     );
@@ -46,13 +46,13 @@ export class TenantViewManager {
   private activeViewKey: ViewKey | null = null;
   private currentBounds: ContentBounds = { x: 0, y: 0, width: 0, height: 0 };
   private mainWindow: BrowserWindow;
-  private loadedPartitions = new Set<string>();
+  private loadedPartitions = new Map<string, Promise<void>>();
 
   constructor(mainWindow: BrowserWindow) {
     this.mainWindow = mainWindow;
   }
 
-  selectView(tenantId: string, portalId: PortalId): void {
+  async selectView(tenantId: string, portalId: PortalId): Promise<void> {
     const key = makeViewKey(tenantId, portalId);
 
     // Hide current view
@@ -67,10 +67,10 @@ export class TenantViewManager {
     if (!this.views.has(key)) {
       const tenant = getTenants().find((t) => t.id === tenantId);
       const domain = tenant?.domain ?? '';
-      this.createTenantViews(tenantId, domain);
+      await this.createTenantViews(tenantId, domain);
     }
 
-    // Show the requested view and give it focus so it receives input
+    // Show the requested view and give it focus
     const view = this.views.get(key);
     if (view) {
       view.setBounds(this.currentBounds);
@@ -81,10 +81,9 @@ export class TenantViewManager {
     }
   }
 
-  selectTool(toolId: string): void {
+  async selectTool(toolId: string): Promise<void> {
     const key = makeToolViewKey(toolId);
 
-    // Hide current view
     if (this.activeViewKey && this.activeViewKey !== key) {
       const current = this.views.get(this.activeViewKey);
       if (current) {
@@ -92,11 +91,10 @@ export class TenantViewManager {
       }
     }
 
-    // Create the tool view if it doesn't exist
     if (!this.views.has(key)) {
       const tool = getTools().find((t) => t.id === toolId);
       if (!tool) return;
-      this.createToolView(tool.id, tool.url);
+      await this.createToolView(tool.id, tool.url);
     }
 
     const view = this.views.get(key);
@@ -107,6 +105,36 @@ export class TenantViewManager {
       this.activeViewKey = key;
       this.sendNavState();
     }
+  }
+
+  // --- Extension Popup ---
+
+  openExtensionPopup(): void {
+    const wc = this.getActiveWebContents();
+    if (!wc) return;
+
+    const ses = wc.session;
+    const extensions = ses.getAllExtensions();
+    const keeper = extensions.find((ext) =>
+      ext.name.toLowerCase().includes('keeper')
+    );
+    if (!keeper) return;
+
+    const popupUrl = `chrome-extension://${keeper.id}/browser_action/browser_action.html`;
+    const popup = new BrowserWindow({
+      parent: this.mainWindow,
+      modal: false,
+      width: 400,
+      height: 600,
+      resizable: true,
+      webPreferences: {
+        session: ses,
+        contextIsolation: true,
+        nodeIntegration: false,
+      },
+    });
+    popup.setMenuBarVisibility(false);
+    popup.loadURL(popupUrl);
   }
 
   // --- Navigation ---
@@ -168,7 +196,10 @@ export class TenantViewManager {
 
   async clearTenantSession(tenantId: string): Promise<void> {
     this.destroyTenantViews(tenantId);
-    await session.fromPartition(`persist:tenant-${tenantId}`).clearStorageData();
+    const partition = `persist:tenant-${tenantId}`;
+    await session.fromPartition(partition).clearStorageData();
+    // Re-allow extension loading for this partition
+    this.loadedPartitions.delete(partition);
   }
 
   destroyAll(): void {
@@ -206,7 +237,6 @@ export class TenantViewManager {
   private setupNavEvents(view: WebContentsView): void {
     const wc = view.webContents;
     const update = () => {
-      // Only send state if this view is the active one
       const key = [...this.views.entries()].find(([, v]) => v === view)?.[0];
       if (key === this.activeViewKey) {
         this.sendNavState();
@@ -220,7 +250,6 @@ export class TenantViewManager {
 
   private setupZoom(view: WebContentsView): void {
     const wc = view.webContents;
-
     wc.setVisualZoomLevelLimits(1, 5);
 
     wc.on('dom-ready', () => {
@@ -255,11 +284,17 @@ export class TenantViewManager {
   }
 
   private setupContextMenu(view: WebContentsView): void {
-    view.webContents.on('context-menu', (_event, params) => {
+    view.webContents.on('context-menu', () => {
       const wc = view.webContents;
       const url = wc.getURL();
 
-      const menu = Menu.buildFromTemplate([
+      // Check if Keeper is loaded in this session
+      const extensions = wc.session.getAllExtensions();
+      const keeper = extensions.find((ext) =>
+        ext.name.toLowerCase().includes('keeper')
+      );
+
+      const template: Electron.MenuItemConstructorOptions[] = [
         {
           label: 'Back',
           enabled: wc.canGoBack(),
@@ -284,29 +319,51 @@ export class TenantViewManager {
           label: 'Open in External Browser',
           click: () => shell.openExternal(url),
         },
-      ]);
+      ];
 
-      menu.popup();
+      // Add Keeper option if available
+      if (keeper) {
+        template.push(
+          { type: 'separator' },
+          {
+            label: 'Keeper Password Manager',
+            click: () => this.openExtensionPopup(),
+          }
+        );
+      }
+
+      Menu.buildFromTemplate(template).popup();
     });
   }
 
   private async loadExtensions(partition: string): Promise<void> {
-    if (this.loadedPartitions.has(partition)) return;
-    this.loadedPartitions.add(partition);
+    // Return existing promise if already loading/loaded
+    const existing = this.loadedPartitions.get(partition);
+    if (existing) return existing;
 
-    const ses = session.fromPartition(partition);
-    for (const extPath of extensionPaths) {
-      try {
-        await ses.loadExtension(extPath, { allowFileAccess: false });
-      } catch {
-        // Extension may not be compatible — skip silently
+    const promise = (async () => {
+      if (extensionPaths.length === 0) return;
+      const ses = session.fromPartition(partition);
+
+      for (const extPath of extensionPaths) {
+        try {
+          const ext = await ses.loadExtension(extPath, { allowFileAccess: false });
+          console.log(`[Extension] Loaded "${ext.name}" v${ext.version} into ${partition}`);
+        } catch (err) {
+          console.error(`[Extension] Failed to load from ${extPath} into ${partition}:`, err);
+        }
       }
-    }
+    })();
+
+    this.loadedPartitions.set(partition, promise);
+    return promise;
   }
 
-  private createTenantViews(tenantId: string, domain: string): void {
+  private async createTenantViews(tenantId: string, domain: string): Promise<void> {
     const partition = `persist:tenant-${tenantId}`;
-    this.loadExtensions(partition);
+
+    // Wait for extensions to load BEFORE creating views
+    await this.loadExtensions(partition);
 
     for (const portalId of PORTAL_IDS) {
       const key = makeViewKey(tenantId, portalId);
@@ -333,12 +390,14 @@ export class TenantViewManager {
     }
   }
 
-  private createToolView(toolId: string, url: string): void {
+  private async createToolView(toolId: string, url: string): Promise<void> {
     const key = makeToolViewKey(toolId);
     if (this.views.has(key)) return;
 
     const partition = `persist:tool-${toolId}`;
-    this.loadExtensions(partition);
+
+    // Wait for extensions to load BEFORE creating the view
+    await this.loadExtensions(partition);
 
     const view = new WebContentsView({
       webPreferences: {
