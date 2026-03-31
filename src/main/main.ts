@@ -167,7 +167,7 @@ ipcMain.on(IPC_CHANNELS.CHECK_FOR_UPDATES, (event) => {
 ipcMain.on(IPC_CHANNELS.NAV_BACK, (event) => getManager(event)?.goBack());
 ipcMain.on(IPC_CHANNELS.NAV_FORWARD, (event) => getManager(event)?.goForward());
 ipcMain.on(IPC_CHANNELS.NAV_RELOAD, (event) => getManager(event)?.reload());
-ipcMain.on(IPC_CHANNELS.OPEN_EXTENSION_POPUP, (event) => getManager(event)?.openExtensionPopup());
+ipcMain.on(IPC_CHANNELS.OPEN_EXTENSION_POPUP, (event) => getManager(event)?.openKeeperVault());
 
 // --- App Lifecycle ---
 

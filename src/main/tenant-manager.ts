@@ -1,6 +1,4 @@
-import { app, BrowserWindow, Menu, WebContentsView, clipboard, session, shell } from 'electron';
-import path from 'node:path';
-import fs from 'node:fs';
+import { BrowserWindow, Menu, WebContentsView, clipboard, session, shell } from 'electron';
 import {
   type PortalId,
   type ViewKey,
@@ -14,45 +12,17 @@ import {
 } from '../types/index';
 import { getTenants, getTools } from './store';
 
-// --- Extension Discovery ---
-
-function findExtensionPaths(): string[] {
-  const paths: string[] = [];
-  const chromeExtDir = path.join(
-    app.getPath('home'),
-    'AppData/Local/Google/Chrome/User Data/Default/Extensions'
-  );
-  if (!fs.existsSync(chromeExtDir)) return paths;
-
-  // Keeper Password Manager
-  const keeperId = 'bfogiafebfohielmmehodmfbbebbbpei';
-  const keeperDir = path.join(chromeExtDir, keeperId);
-  if (fs.existsSync(keeperDir)) {
-    const versions = fs.readdirSync(keeperDir).filter((d) =>
-      fs.statSync(path.join(keeperDir, d)).isDirectory() && d !== 'Temp'
-    );
-    if (versions.length > 0) {
-      versions.sort();
-      paths.push(path.join(keeperDir, versions[versions.length - 1]));
-    }
-  }
-  return paths;
-}
-
-const extensionPaths = findExtensionPaths();
-
 export class TenantViewManager {
   private views = new Map<ViewKey, WebContentsView>();
   private activeViewKey: ViewKey | null = null;
   private currentBounds: ContentBounds = { x: 0, y: 0, width: 0, height: 0 };
   private mainWindow: BrowserWindow;
-  private loadedPartitions = new Map<string, Promise<void>>();
 
   constructor(mainWindow: BrowserWindow) {
     this.mainWindow = mainWindow;
   }
 
-  async selectView(tenantId: string, portalId: PortalId): Promise<void> {
+  selectView(tenantId: string, portalId: PortalId): void {
     const key = makeViewKey(tenantId, portalId);
 
     // Hide current view
@@ -67,7 +37,7 @@ export class TenantViewManager {
     if (!this.views.has(key)) {
       const tenant = getTenants().find((t) => t.id === tenantId);
       const domain = tenant?.domain ?? '';
-      await this.createTenantViews(tenantId, domain);
+      this.createTenantViews(tenantId, domain);
     }
 
     // Show the requested view and give it focus
@@ -81,7 +51,7 @@ export class TenantViewManager {
     }
   }
 
-  async selectTool(toolId: string): Promise<void> {
+  selectTool(toolId: string): void {
     const key = makeToolViewKey(toolId);
 
     if (this.activeViewKey && this.activeViewKey !== key) {
@@ -94,7 +64,7 @@ export class TenantViewManager {
     if (!this.views.has(key)) {
       const tool = getTools().find((t) => t.id === toolId);
       if (!tool) return;
-      await this.createToolView(tool.id, tool.url);
+      this.createToolView(tool.id, tool.url);
     }
 
     const view = this.views.get(key);
@@ -107,34 +77,22 @@ export class TenantViewManager {
     }
   }
 
-  // --- Extension Popup ---
+  // --- Keeper Vault ---
 
-  openExtensionPopup(): void {
-    const wc = this.getActiveWebContents();
-    if (!wc) return;
-
-    const ses = wc.session;
-    const extensions = ses.getAllExtensions();
-    const keeper = extensions.find((ext) =>
-      ext.name.toLowerCase().includes('keeper')
-    );
-    if (!keeper) return;
-
-    const popupUrl = `chrome-extension://${keeper.id}/browser_action/browser_action.html`;
+  openKeeperVault(): void {
+    // Open Keeper web vault in a popup window with its own persistent session
     const popup = new BrowserWindow({
       parent: this.mainWindow,
-      modal: false,
-      width: 400,
-      height: 600,
-      resizable: true,
+      width: 500,
+      height: 700,
       webPreferences: {
-        session: ses,
+        partition: 'persist:keeper-vault',
         contextIsolation: true,
         nodeIntegration: false,
       },
     });
     popup.setMenuBarVisibility(false);
-    popup.loadURL(popupUrl);
+    popup.loadURL('https://keepersecurity.com/vault/');
   }
 
   // --- Navigation ---
@@ -198,8 +156,6 @@ export class TenantViewManager {
     this.destroyTenantViews(tenantId);
     const partition = `persist:tenant-${tenantId}`;
     await session.fromPartition(partition).clearStorageData();
-    // Re-allow extension loading for this partition
-    this.loadedPartitions.delete(partition);
   }
 
   destroyAll(): void {
@@ -288,12 +244,6 @@ export class TenantViewManager {
       const wc = view.webContents;
       const url = wc.getURL();
 
-      // Check if Keeper is loaded in this session
-      const extensions = wc.session.getAllExtensions();
-      const keeper = extensions.find((ext) =>
-        ext.name.toLowerCase().includes('keeper')
-      );
-
       const template: Electron.MenuItemConstructorOptions[] = [
         {
           label: 'Back',
@@ -321,49 +271,20 @@ export class TenantViewManager {
         },
       ];
 
-      // Add Keeper option if available
-      if (keeper) {
-        template.push(
-          { type: 'separator' },
-          {
-            label: 'Keeper Password Manager',
-            click: () => this.openExtensionPopup(),
-          }
-        );
-      }
+      template.push(
+        { type: 'separator' },
+        {
+          label: 'Keeper Vault',
+          click: () => this.openKeeperVault(),
+        }
+      );
 
       Menu.buildFromTemplate(template).popup();
     });
   }
 
-  private async loadExtensions(partition: string): Promise<void> {
-    // Return existing promise if already loading/loaded
-    const existing = this.loadedPartitions.get(partition);
-    if (existing) return existing;
-
-    const promise = (async () => {
-      if (extensionPaths.length === 0) return;
-      const ses = session.fromPartition(partition);
-
-      for (const extPath of extensionPaths) {
-        try {
-          const ext = await ses.loadExtension(extPath, { allowFileAccess: false });
-          console.log(`[Extension] Loaded "${ext.name}" v${ext.version} into ${partition}`);
-        } catch (err) {
-          console.error(`[Extension] Failed to load from ${extPath} into ${partition}:`, err);
-        }
-      }
-    })();
-
-    this.loadedPartitions.set(partition, promise);
-    return promise;
-  }
-
-  private async createTenantViews(tenantId: string, domain: string): Promise<void> {
+  private createTenantViews(tenantId: string, domain: string): void {
     const partition = `persist:tenant-${tenantId}`;
-
-    // Wait for extensions to load BEFORE creating views
-    await this.loadExtensions(partition);
 
     for (const portalId of PORTAL_IDS) {
       const key = makeViewKey(tenantId, portalId);
@@ -390,14 +311,11 @@ export class TenantViewManager {
     }
   }
 
-  private async createToolView(toolId: string, url: string): Promise<void> {
+  private createToolView(toolId: string, url: string): void {
     const key = makeToolViewKey(toolId);
     if (this.views.has(key)) return;
 
     const partition = `persist:tool-${toolId}`;
-
-    // Wait for extensions to load BEFORE creating the view
-    await this.loadExtensions(partition);
 
     const view = new WebContentsView({
       webPreferences: {
