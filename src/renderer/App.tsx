@@ -1,14 +1,19 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Sidebar from './components/Sidebar';
 import TabBar from './components/TabBar';
-import type { Tenant, PortalId } from '../types/index';
+import NavBar from './components/NavBar';
+import type { Tenant, PortalId, NavState } from '../types/index';
 import './App.css';
+
+const EMPTY_NAV: NavState = { canGoBack: false, canGoForward: false, isLoading: false, url: '' };
 
 function App() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [activeTenantId, setActiveTenantId] = useState<string | null>(null);
+  const [activeToolId, setActiveToolId] = useState<string | null>(null);
   const [activePortalId, setActivePortalId] = useState<PortalId>('admin');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [navState, setNavState] = useState<NavState>(EMPTY_NAV);
   const contentRef = useRef<HTMLDivElement>(null);
 
   const refreshTenants = useCallback(async () => {
@@ -17,12 +22,15 @@ function App() {
     return list;
   }, []);
 
-  // Load tenants on mount
   useEffect(() => {
     refreshTenants();
   }, [refreshTenants]);
 
-  // Report content area bounds to main process via ResizeObserver
+  useEffect(() => {
+    const cleanup = window.electronAPI.onNavState(setNavState);
+    return cleanup;
+  }, []);
+
   const sendBounds = useCallback(() => {
     if (!contentRef.current) return;
     const rect = contentRef.current.getBoundingClientRect();
@@ -37,19 +45,26 @@ function App() {
   useEffect(() => {
     const el = contentRef.current;
     if (!el) return;
-
     const observer = new ResizeObserver(sendBounds);
     observer.observe(el);
     sendBounds();
-
     return () => observer.disconnect();
   }, [sendBounds]);
 
   const handleSelectTenant = useCallback((tenantId: string) => {
     setActiveTenantId(tenantId);
+    setActiveToolId(null);
     setActivePortalId('admin');
     requestAnimationFrame(() => {
       window.electronAPI.selectTenant(tenantId, 'admin');
+    });
+  }, []);
+
+  const handleSelectTool = useCallback((toolId: string) => {
+    setActiveToolId(toolId);
+    setActiveTenantId(null);
+    requestAnimationFrame(() => {
+      window.electronAPI.selectTool(toolId);
     });
   }, []);
 
@@ -62,7 +77,6 @@ function App() {
   const handleAddTenant = useCallback(async (name: string, domain: string) => {
     const tenant = await window.electronAPI.addTenant({ name, domain });
     await refreshTenants();
-    // Auto-select the new tenant
     handleSelectTenant(tenant.id);
   }, [refreshTenants, handleSelectTenant]);
 
@@ -74,24 +88,28 @@ function App() {
   const handleRemoveTenant = useCallback(async (id: string) => {
     await window.electronAPI.removeTenant(id);
     const list = await refreshTenants();
-    // If we removed the active tenant, clear selection
     if (activeTenantId === id) {
       if (list.length > 0) {
         handleSelectTenant(list[0].id);
       } else {
         setActiveTenantId(null);
+        setNavState(EMPTY_NAV);
       }
     }
   }, [activeTenantId, refreshTenants, handleSelectTenant]);
+
+  const hasActiveView = activeTenantId || activeToolId;
 
   return (
     <div className="app">
       <Sidebar
         tenants={tenants}
         activeTenantId={activeTenantId}
+        activeToolId={activeToolId}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
         onSelectTenant={handleSelectTenant}
+        onSelectTool={handleSelectTool}
         onAddTenant={handleAddTenant}
         onUpdateTenant={handleUpdateTenant}
         onRemoveTenant={handleRemoveTenant}
@@ -103,13 +121,14 @@ function App() {
             onSelectPortal={handleSelectPortal}
           />
         ) : null}
+        {hasActiveView ? <NavBar navState={navState} /> : null}
         <div className="content-area" ref={contentRef}>
-          {!activeTenantId && (
+          {!hasActiveView && (
             <div className="content-placeholder">
               <p>
                 {tenants.length === 0
                   ? 'Add a tenant to get started.'
-                  : 'Select a tenant from the sidebar.'}
+                  : 'Select a tenant or tool from the sidebar.'}
               </p>
             </div>
           )}

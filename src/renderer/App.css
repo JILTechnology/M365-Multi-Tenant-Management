@@ -61,6 +61,20 @@
   color: #a6adc8;
 }
 
+.sidebar-tools {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #313244;
+}
+
+.sidebar-section-label {
+  padding: 0.5rem 1rem 0.25rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6c7086;
+}
+
 .sidebar-list {
   flex: 1;
   overflow-y: auto;
@@ -367,6 +381,79 @@
 .tab-item.active {
   color: #0078d4;
   border-bottom-color: #0078d4;
+}
+
+/* --- Nav Bar --- */
+
+.nav-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 32px;
+  flex-shrink: 0;
+  padding: 0 0.5rem;
+  background: #fff;
+  border-bottom: 1px solid #e0e0e0;
+  position: relative;
+}
+
+.nav-buttons {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.nav-btn {
+  width: 28px;
+  height: 24px;
+  border: none;
+  background: none;
+  color: #555;
+  font-size: 0.9rem;
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-btn:hover:not(:disabled) {
+  background: #eee;
+  color: #111;
+}
+
+.nav-btn:disabled {
+  color: #ccc;
+  cursor: default;
+}
+
+.nav-url {
+  flex: 1;
+  min-width: 0;
+  padding: 0.2rem 0.5rem;
+  background: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  color: #666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-loading-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: #0078d4;
+  animation: nav-loading 1.5s ease-in-out infinite;
+}
+
+@keyframes nav-loading {
+  0% { width: 0; left: 0; }
+  50% { width: 60%; left: 20%; }
+  100% { width: 0; left: 100%; }
 }
 
 /* --- Content Area --- */

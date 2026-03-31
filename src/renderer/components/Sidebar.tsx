@@ -1,14 +1,17 @@
 import { useState, useRef, useEffect } from 'react';
 import type { Tenant } from '../../types/index';
+import { TOOL_SITES } from '../../types/index';
 import AddTenantForm from './AddTenantForm';
 import EditTenantForm from './EditTenantForm';
 
 interface SidebarProps {
   tenants: Tenant[];
   activeTenantId: string | null;
+  activeToolId: string | null;
   collapsed: boolean;
   onToggleCollapse: () => void;
   onSelectTenant: (tenantId: string) => void;
+  onSelectTool: (toolId: string) => void;
   onAddTenant: (name: string, domain: string) => void;
   onUpdateTenant: (id: string, name: string, domain: string) => void;
   onRemoveTenant: (id: string) => void;
@@ -36,9 +39,11 @@ function getInitials(name: string): string {
 export default function Sidebar({
   tenants,
   activeTenantId,
+  activeToolId,
   collapsed,
   onToggleCollapse,
   onSelectTenant,
+  onSelectTool,
   onAddTenant,
   onUpdateTenant,
   onRemoveTenant,
@@ -92,6 +97,31 @@ export default function Sidebar({
         </button>
         {!collapsed && <h2>Tenants</h2>}
       </div>
+      <div className="sidebar-tools">
+        {TOOL_SITES.map((tool) => (
+          <button
+            key={tool.id}
+            className={`sidebar-item ${activeToolId === tool.id ? 'active' : ''}`}
+            onClick={() => onSelectTool(tool.id)}
+            title={collapsed ? tool.label : undefined}
+          >
+            {collapsed ? (
+              <span className="sidebar-item-avatar" style={{ backgroundColor: '#f97316' }}>
+                {tool.label.slice(0, 2).toUpperCase()}
+              </span>
+            ) : (
+              <>
+                <span className="sidebar-item-dot" style={{ backgroundColor: '#f97316' }} />
+                <div className="sidebar-item-text">
+                  <span className="sidebar-item-name">{tool.label}</span>
+                  <span className="sidebar-item-domain">{tool.url.replace('https://', '')}</span>
+                </div>
+              </>
+            )}
+          </button>
+        ))}
+      </div>
+      {!collapsed && <div className="sidebar-section-label">Tenants</div>}
       <div className="sidebar-list">
         {tenants.map((tenant) =>
           !collapsed && editingId === tenant.id ? (

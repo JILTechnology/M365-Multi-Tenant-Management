@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 import { updateElectronApp } from 'update-electron-app';
@@ -19,7 +19,13 @@ if (started) {
   app.quit();
 }
 
-let viewManager: TenantViewManager | null = null;
+// Track each window's view manager
+const managers = new Map<number, TenantViewManager>();
+
+function getManager(event: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent): TenantViewManager | null {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  return win ? managers.get(win.id) ?? null : null;
+}
 
 const createWindow = (): void => {
   const mainWindow = new BrowserWindow({
@@ -35,7 +41,13 @@ const createWindow = (): void => {
     },
   });
 
-  viewManager = new TenantViewManager(mainWindow);
+  const manager = new TenantViewManager(mainWindow);
+  managers.set(mainWindow.id, manager);
+
+  mainWindow.on('closed', () => {
+    manager.destroyAll();
+    managers.delete(mainWindow.id);
+  });
 
   // Load the React renderer
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
@@ -45,8 +57,10 @@ const createWindow = (): void => {
       path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`)
     );
   }
-
 };
+
+// Keep Ctrl+N working via hidden global shortcut
+import { globalShortcut } from 'electron';
 
 // --- IPC Handlers ---
 
@@ -66,30 +80,46 @@ ipcMain.handle(IPC_CHANNELS.TENANT_UPDATE, (_event, id: string, input: TenantInp
   return updateTenant(id, input);
 });
 
-ipcMain.handle(IPC_CHANNELS.TENANT_REMOVE, (_event, id: string) => {
-  viewManager?.destroyTenantViews(id);
+ipcMain.handle(IPC_CHANNELS.TENANT_REMOVE, (event, id: string) => {
+  getManager(event)?.destroyTenantViews(id);
   removeTenant(id);
 });
 
 ipcMain.on(
   IPC_CHANNELS.TENANT_SELECT,
-  (_event, payload: { tenantId: string; portalId: PortalId }) => {
-    viewManager?.selectView(payload.tenantId, payload.portalId);
+  (event, payload: { tenantId: string; portalId: PortalId }) => {
+    getManager(event)?.selectView(payload.tenantId, payload.portalId);
   }
 );
 
 ipcMain.on(
   IPC_CHANNELS.LAYOUT_UPDATE,
-  (_event, payload: { contentBounds: ContentBounds }) => {
-    viewManager?.updateBounds(payload.contentBounds);
+  (event, payload: { contentBounds: ContentBounds }) => {
+    getManager(event)?.updateBounds(payload.contentBounds);
   }
 );
 
+ipcMain.on(
+  IPC_CHANNELS.TOOL_SELECT,
+  (event, toolId: string) => {
+    getManager(event)?.selectTool(toolId);
+  }
+);
+
+// --- Navigation ---
+
+ipcMain.on(IPC_CHANNELS.NAV_BACK, (event) => getManager(event)?.goBack());
+ipcMain.on(IPC_CHANNELS.NAV_FORWARD, (event) => getManager(event)?.goForward());
+ipcMain.on(IPC_CHANNELS.NAV_RELOAD, (event) => getManager(event)?.reload());
+
 // --- App Lifecycle ---
 
-app.on('ready', createWindow);
+app.on('ready', () => {
+  Menu.setApplicationMenu(null);
+  globalShortcut.register('CmdOrCtrl+N', createWindow);
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
-  viewManager?.destroyAll();
   app.quit();
 });

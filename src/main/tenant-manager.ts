@@ -3,8 +3,12 @@ import {
   type PortalId,
   type ViewKey,
   type ContentBounds,
+  type NavState,
+  IPC_CHANNELS,
   PORTAL_IDS,
+  TOOL_SITES,
   makeViewKey,
+  makeToolViewKey,
   resolvePortalUrl,
 } from '../types/index';
 import { getTenants } from './store';
@@ -44,17 +48,64 @@ export class TenantViewManager {
       view.setVisible(true);
       view.webContents.focus();
       this.activeViewKey = key;
+      this.sendNavState();
     }
   }
 
+  selectTool(toolId: string): void {
+    const key = makeToolViewKey(toolId);
+
+    // Hide current view
+    if (this.activeViewKey && this.activeViewKey !== key) {
+      const current = this.views.get(this.activeViewKey);
+      if (current) {
+        current.setVisible(false);
+      }
+    }
+
+    // Create the tool view if it doesn't exist
+    if (!this.views.has(key)) {
+      const tool = TOOL_SITES.find((t) => t.id === toolId);
+      if (!tool) return;
+      this.createToolView(tool.id, tool.url);
+    }
+
+    const view = this.views.get(key);
+    if (view) {
+      view.setBounds(this.currentBounds);
+      view.setVisible(true);
+      view.webContents.focus();
+      this.activeViewKey = key;
+      this.sendNavState();
+    }
+  }
+
+  // --- Navigation ---
+
+  goBack(): void {
+    const wc = this.getActiveWebContents();
+    if (wc?.canGoBack()) wc.goBack();
+  }
+
+  goForward(): void {
+    const wc = this.getActiveWebContents();
+    if (wc?.canGoForward()) wc.goForward();
+  }
+
+  reload(): void {
+    this.getActiveWebContents()?.reload();
+  }
+
+  // --- Bounds ---
+
   updateBounds(bounds: ContentBounds): void {
     this.currentBounds = bounds;
-
-    // Reposition all views (only visible one matters, but keep all in sync)
     for (const view of this.views.values()) {
       view.setBounds(bounds);
     }
   }
+
+  // --- Cleanup ---
 
   destroyTenantViews(tenantId: string): void {
     for (const portalId of PORTAL_IDS) {
@@ -73,6 +124,11 @@ export class TenantViewManager {
   }
 
   destroyAll(): void {
+    if (this.mainWindow.isDestroyed()) {
+      this.views.clear();
+      this.activeViewKey = null;
+      return;
+    }
     for (const [key, view] of this.views) {
       this.mainWindow.contentView.removeChildView(view);
       view.webContents.close();
@@ -81,16 +137,44 @@ export class TenantViewManager {
     this.activeViewKey = null;
   }
 
+  // --- Private ---
+
+  private getActiveWebContents() {
+    if (!this.activeViewKey) return null;
+    return this.views.get(this.activeViewKey)?.webContents ?? null;
+  }
+
+  private sendNavState(): void {
+    const wc = this.getActiveWebContents();
+    const state: NavState = {
+      canGoBack: wc?.canGoBack() ?? false,
+      canGoForward: wc?.canGoForward() ?? false,
+      isLoading: wc?.isLoading() ?? false,
+      url: wc?.getURL() ?? '',
+    };
+    this.mainWindow.webContents.send(IPC_CHANNELS.NAV_STATE, state);
+  }
+
+  private setupNavEvents(view: WebContentsView): void {
+    const wc = view.webContents;
+    const update = () => {
+      // Only send state if this view is the active one
+      const key = [...this.views.entries()].find(([, v]) => v === view)?.[0];
+      if (key === this.activeViewKey) {
+        this.sendNavState();
+      }
+    };
+    wc.on('did-start-loading', update);
+    wc.on('did-stop-loading', update);
+    wc.on('did-navigate', update);
+    wc.on('did-navigate-in-page', update);
+  }
+
   private setupZoom(view: WebContentsView): void {
     const wc = view.webContents;
 
-    // Enable pinch-to-zoom
     wc.setVisualZoomLevelLimits(1, 5);
 
-    // Ctrl+scroll wheel zoom via injected handler — uses Electron zoom API
-    // through a shared variable that the main process polls isn't feasible,
-    // so we use a lightweight approach: inject script that communicates via
-    // console message.
     wc.on('dom-ready', () => {
       wc.executeJavaScript(`
         document.addEventListener('wheel', (e) => {
@@ -102,7 +186,6 @@ export class TenantViewManager {
       `);
     });
 
-    // Listen for zoom console messages from the injected script
     wc.on('console-message', (_event, _level, message) => {
       if (message === '__zoom__:in') {
         wc.setZoomLevel(wc.getZoomLevel() + 0.5);
@@ -111,7 +194,6 @@ export class TenantViewManager {
       }
     });
 
-    // Ctrl+Plus/Minus/Zero keyboard zoom
     wc.on('before-input-event', (_event, input) => {
       if (!input.control || input.type !== 'keyDown') return;
       if (input.key === '=' || input.key === '+') {
@@ -144,10 +226,33 @@ export class TenantViewManager {
       this.mainWindow.contentView.addChildView(view);
       view.webContents.loadURL(resolvePortalUrl(portalId, domain));
 
-      // Enable Ctrl+scroll zoom and Ctrl+/- keyboard zoom
       this.setupZoom(view);
+      this.setupNavEvents(view);
 
       this.views.set(key, view);
     }
+  }
+
+  private createToolView(toolId: string, url: string): void {
+    const key = makeToolViewKey(toolId);
+    if (this.views.has(key)) return;
+
+    const view = new WebContentsView({
+      webPreferences: {
+        partition: `persist:tool-${toolId}`,
+        contextIsolation: true,
+        nodeIntegration: false,
+      },
+    });
+
+    view.setVisible(false);
+    view.setBounds(this.currentBounds);
+    this.mainWindow.contentView.addChildView(view);
+    view.webContents.loadURL(url);
+
+    this.setupZoom(view);
+    this.setupNavEvents(view);
+
+    this.views.set(key, view);
   }
 }

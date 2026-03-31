@@ -47,6 +47,18 @@ export function resolvePortalUrl(portalId: PortalId, domain: string): string {
   return typeof url === 'function' ? url(domain) : url;
 }
 
+// --- Tool Sites (global, not per-tenant) ---
+
+export interface ToolSite {
+  id: string;
+  label: string;
+  url: string;
+}
+
+export const TOOL_SITES: ToolSite[] = [
+  { id: 'pax8', label: 'Pax8', url: 'https://app.pax8.com/' },
+];
+
 // --- Tenant Definitions ---
 
 export interface Tenant {
@@ -62,10 +74,14 @@ export interface TenantInput {
 
 // --- View Key ---
 
-export type ViewKey = `${string}:${PortalId}`;
+export type ViewKey = string;
 
 export function makeViewKey(tenantId: string, portalId: PortalId): ViewKey {
   return `${tenantId}:${portalId}`;
+}
+
+export function makeToolViewKey(toolId: string): ViewKey {
+  return `tool:${toolId}`;
 }
 
 // --- IPC Channels ---
@@ -77,8 +93,22 @@ export const IPC_CHANNELS = {
   TENANT_UPDATE: 'tenant:update',
   TENANT_REMOVE: 'tenant:remove',
   TENANT_SELECT: 'tenant:select',
+  TOOL_SELECT: 'tool:select',
   LAYOUT_UPDATE: 'layout:update',
+  NAV_BACK: 'nav:back',
+  NAV_FORWARD: 'nav:forward',
+  NAV_RELOAD: 'nav:reload',
+  NAV_STATE: 'nav:state',
 } as const;
+
+// --- Navigation State ---
+
+export interface NavState {
+  canGoBack: boolean;
+  canGoForward: boolean;
+  isLoading: boolean;
+  url: string;
+}
 
 // --- Content Bounds ---
 
@@ -98,7 +128,12 @@ export interface ElectronAPI {
   updateTenant(id: string, input: TenantInput): Promise<Tenant>;
   removeTenant(id: string): Promise<void>;
   selectTenant(tenantId: string, portalId: PortalId): void;
+  selectTool(toolId: string): void;
   updateLayout(contentBounds: ContentBounds): void;
+  navBack(): void;
+  navForward(): void;
+  navReload(): void;
+  onNavState(callback: (state: NavState) => void): () => void;
 }
 
 declare global {
