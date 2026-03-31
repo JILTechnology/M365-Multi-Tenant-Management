@@ -25,7 +25,6 @@ export class TenantViewManager {
   selectView(tenantId: string, portalId: PortalId): void {
     const key = makeViewKey(tenantId, portalId);
 
-    // Hide current view
     if (this.activeViewKey && this.activeViewKey !== key) {
       const current = this.views.get(this.activeViewKey);
       if (current) {
@@ -33,14 +32,12 @@ export class TenantViewManager {
       }
     }
 
-    // Create all views for this tenant if they don't exist yet
     if (!this.views.has(key)) {
       const tenant = getTenants().find((t) => t.id === tenantId);
       const domain = tenant?.domain ?? '';
       this.createTenantViews(tenantId, domain);
     }
 
-    // Show the requested view and give it focus
     const view = this.views.get(key);
     if (view) {
       view.setBounds(this.currentBounds);
@@ -80,11 +77,11 @@ export class TenantViewManager {
   // --- Keeper Vault ---
 
   openKeeperVault(): void {
-    // Open Keeper web vault in a popup window with its own persistent session
     const popup = new BrowserWindow({
       parent: this.mainWindow,
-      width: 500,
-      height: 700,
+      width: 420,
+      height: 620,
+      resizable: true,
       webPreferences: {
         partition: 'persist:keeper-vault',
         contextIsolation: true,
@@ -154,8 +151,7 @@ export class TenantViewManager {
 
   async clearTenantSession(tenantId: string): Promise<void> {
     this.destroyTenantViews(tenantId);
-    const partition = `persist:tenant-${tenantId}`;
-    await session.fromPartition(partition).clearStorageData();
+    await session.fromPartition(`persist:tenant-${tenantId}`).clearStorageData();
   }
 
   destroyAll(): void {
@@ -244,42 +240,17 @@ export class TenantViewManager {
       const wc = view.webContents;
       const url = wc.getURL();
 
-      const template: Electron.MenuItemConstructorOptions[] = [
-        {
-          label: 'Back',
-          enabled: wc.canGoBack(),
-          click: () => wc.goBack(),
-        },
-        {
-          label: 'Forward',
-          enabled: wc.canGoForward(),
-          click: () => wc.goForward(),
-        },
+      Menu.buildFromTemplate([
+        { label: 'Back', enabled: wc.canGoBack(), click: () => wc.goBack() },
+        { label: 'Forward', enabled: wc.canGoForward(), click: () => wc.goForward() },
         { type: 'separator' },
-        {
-          label: 'Reload',
-          click: () => wc.reload(),
-        },
+        { label: 'Reload', click: () => wc.reload() },
         { type: 'separator' },
-        {
-          label: 'Copy URL',
-          click: () => clipboard.writeText(url),
-        },
-        {
-          label: 'Open in External Browser',
-          click: () => shell.openExternal(url),
-        },
-      ];
-
-      template.push(
+        { label: 'Copy URL', click: () => clipboard.writeText(url) },
+        { label: 'Open in External Browser', click: () => shell.openExternal(url) },
         { type: 'separator' },
-        {
-          label: 'Keeper Vault',
-          click: () => this.openKeeperVault(),
-        }
-      );
-
-      Menu.buildFromTemplate(template).popup();
+        { label: 'Keeper Vault', click: () => this.openKeeperVault() },
+      ]).popup();
     });
   }
 
