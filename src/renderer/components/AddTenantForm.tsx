@@ -1,18 +1,27 @@
 import { useState } from 'react';
 
 interface AddTenantFormProps {
-  onSave: (name: string, domain: string) => void;
+  onSave: (name: string, domain: string) => void | Promise<void>;
   onCancel: () => void;
 }
 
 export default function AddTenantForm({ onSave, onCancel }: AddTenantFormProps) {
   const [name, setName] = useState('');
   const [domain, setDomain] = useState('');
+  const [error, setError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (name.trim() && domain.trim()) {
-      onSave(name.trim(), domain.trim());
+    if (!name.trim() || !domain.trim() || isSaving) return;
+    setError('');
+    setIsSaving(true);
+    try {
+      await onSave(name.trim(), domain.trim());
+    } catch {
+      setError('Enter a valid tenant name and DNS domain.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -22,18 +31,29 @@ export default function AddTenantForm({ onSave, onCancel }: AddTenantFormProps) 
         type="text"
         placeholder="Tenant name"
         value={name}
-        onChange={(e) => setName(e.target.value)}
+        onChange={(e) => {
+          setName(e.target.value);
+          setError('');
+        }}
         autoFocus
       />
       <input
         type="text"
         placeholder="domain.onmicrosoft.com"
         value={domain}
-        onChange={(e) => setDomain(e.target.value)}
+        onChange={(e) => {
+          setDomain(e.target.value);
+          setError('');
+        }}
       />
+      {error && <div className="tab-add-error">{error}</div>}
       <div className="tenant-form-actions">
-        <button type="submit" className="btn-save" disabled={!name.trim() || !domain.trim()}>
-          Save
+        <button
+          type="submit"
+          className="btn-save"
+          disabled={!name.trim() || !domain.trim() || isSaving}
+        >
+          {isSaving ? 'Saving...' : 'Save'}
         </button>
         <button type="button" className="btn-cancel" onClick={onCancel}>
           Cancel

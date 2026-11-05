@@ -1,24 +1,33 @@
 import type { ForgeConfig } from '@electron-forge/shared-types';
 import { MakerSquirrel } from '@electron-forge/maker-squirrel';
-import { MakerZIP } from '@electron-forge/maker-zip';
 import { VitePlugin } from '@electron-forge/plugin-vite';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
+
+const windowsSign = process.env.WINDOWS_CERTIFICATE_FILE
+  ? {
+      certificateFile: process.env.WINDOWS_CERTIFICATE_FILE,
+      certificatePassword: process.env.WINDOWS_CERTIFICATE_PASSWORD,
+      description: 'M365 Multi Tenant Management',
+      website: 'https://github.com/JILTechnology/M365-Multi-Tenant-Management',
+    }
+  : undefined;
 
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
     name: 'M365 Multi Tenant Management',
     icon: './assets/icon',
+    ...(windowsSign ? { windowsSign } : {}),
   },
   rebuildConfig: {},
   makers: [
     new MakerSquirrel({
       name: 'M365MultiTenantManagement',
-      iconUrl: 'https://raw.githubusercontent.com/JILTechnology/M365-Multi-Tenant-Management/master/assets/icon.ico',
+      iconUrl: 'https://raw.githubusercontent.com/JILTechnology/M365-Multi-Tenant-Management/9f6696ca9c315e1ad69eefd5cfeb4ec9d0acf7d3/assets/icon.ico',
       setupIcon: './assets/icon.ico',
+      ...(windowsSign ? { windowsSign } : {}),
     }),
-    new MakerZIP({}, ['darwin']),
   ],
   plugins: [
     new VitePlugin({

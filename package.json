@@ -1,14 +1,21 @@
 {
   "name": "m365-multi-tenant-management",
   "productName": "M365 Multi Tenant Management",
-  "version": "0.1.0",
+  "version": "0.1.6",
   "description": "Desktop app for MSPs to manage multiple Microsoft 365 tenants with isolated browser sessions",
   "main": ".vite/build/main.js",
   "private": true,
   "scripts": {
     "start": "electron-forge start",
-    "package": "electron-forge package",
-    "make": "electron-forge make"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:editing": "node scripts/smoke-test-editing.mjs",
+    "verify": "npm run typecheck && npm test",
+    "package": "node scripts/require-code-signing.mjs && electron-forge package",
+    "package:unsigned": "electron-forge package",
+    "make": "node scripts/require-code-signing.mjs && electron-forge make",
+    "make:unsigned": "electron-forge make",
+    "audit:prod": "npm audit --omit=dev"
   },
   "keywords": [
     "electron",
@@ -27,26 +34,24 @@
     "url": "https://github.com/JILTechnology/M365-Multi-Tenant-Management.git"
   },
   "devDependencies": {
-    "@electron-forge/cli": "^7.11.1",
-    "@electron-forge/maker-squirrel": "^7.11.1",
-    "@electron-forge/maker-zip": "^7.11.1",
-    "@electron-forge/plugin-auto-unpack-natives": "^7.11.1",
-    "@electron-forge/plugin-fuses": "^7.11.1",
-    "@electron-forge/plugin-vite": "^7.11.1",
-    "@electron/fuses": "^1.8.0",
-    "@types/electron-squirrel-startup": "^1.0.2",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^4.7.0",
-    "electron": "41.1.0",
-    "typescript": "~5.7",
-    "vite": "^5.4.21"
+    "@electron-forge/cli": "8.0.0-alpha.10",
+    "@electron-forge/maker-squirrel": "8.0.0-alpha.10",
+    "@electron-forge/plugin-fuses": "8.0.0-alpha.10",
+    "@electron-forge/plugin-vite": "8.0.0-alpha.10",
+    "@electron/fuses": "2.1.3",
+    "@types/electron-squirrel-startup": "1.0.2",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
+    "@vitejs/plugin-react": "6.0.5",
+    "electron": "43.4.0",
+    "typescript": "7.0.2",
+    "vite": "8.2.1",
+    "vitest": "4.1.10"
   },
   "dependencies": {
-    "electron-squirrel-startup": "^1.0.1",
-    "electron-store": "^11.0.2",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
-    "update-electron-app": "^3.1.2"
+    "electron-squirrel-startup": "1.0.1",
+    "electron-store": "11.0.2",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
   }
 }

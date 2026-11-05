@@ -105,5 +105,8 @@ Desktop.ini
 *.pem
 *.key
 *.cert
+*.p12
+*.pfx
+electron-windows-sign.log
 .env.local
 .env.production
