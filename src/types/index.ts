@@ -12,7 +12,8 @@ export type PortalId =
   | 'teams'
   | 'sharepoint'
   | 'azure'
-  | 'security';
+  | 'security'
+  | 'browse';
 
 type PortalUrl = string | ((domain: string) => string);
 
@@ -37,6 +38,7 @@ export const PORTALS: Record<PortalId, PortalDef> = {
   },
   azure: { label: 'Azure', url: 'https://portal.azure.com' },
   security: { label: 'Security', url: 'https://security.microsoft.com' },
+  browse: { label: 'Browse', url: 'about:blank' },
 };
 
 export const PORTAL_IDS = Object.keys(PORTALS) as PortalId[];
@@ -180,6 +182,7 @@ export const IPC_CHANNELS = {
   NAV_FORWARD: 'nav:forward',
   NAV_RELOAD: 'nav:reload',
   NAV_STATE: 'nav:state',
+  NAV_NAVIGATE: 'nav:navigate',
   CHECK_FOR_UPDATES: 'app:check-updates',
   OPEN_EXTENSION_POPUP: 'ext:open-popup',
 } as const;
@@ -275,6 +278,7 @@ export interface ElectronAPI {
   navBack(): void;
   navForward(): void;
   navReload(): void;
+  navigateTo(url: string): Promise<boolean>;
   onNavState(callback: (state: NavState) => void): () => void;
   onDataChanged(callback: (notice: DataChangeNotice) => void): () => void;
   checkForUpdates(): void;

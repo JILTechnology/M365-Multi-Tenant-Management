@@ -95,6 +95,9 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.send(IPC_CHANNELS.NAV_RELOAD);
   },
 
+  navigateTo: (url: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.NAV_NAVIGATE, url),
+
   onNavState: (callback: (state: NavState) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, state: NavState) => callback(state);
     ipcRenderer.on(IPC_CHANNELS.NAV_STATE, handler);

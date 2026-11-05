@@ -268,7 +268,7 @@ function App() {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!event.ctrlKey) return;
       const digit = Number.parseInt(event.key, 10);
-      if (digit >= 1 && digit <= 8) {
+      if (digit >= 1 && digit <= 9) {
         const index = digit - 1;
         if (activeTenantId && index < PORTAL_IDS.length) {
           event.preventDefault();

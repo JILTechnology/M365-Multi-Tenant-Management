@@ -748,6 +748,24 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: text;
+}
+
+.nav-url-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.2rem 0.5rem;
+  background: #fff;
+  border: 1px solid #0078d4;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  color: #111;
+  outline: none;
+  font-family: inherit;
+}
+
+.nav-url-input.invalid {
+  border-color: #d13438;
 }
 
 .nav-loading-bar {

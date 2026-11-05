@@ -178,6 +178,19 @@ export class TenantViewManager {
     this.getActiveWebContents()?.reload();
   }
 
+  navigateTo(url: string): boolean {
+    const wc = this.getActiveWebContents();
+    if (!wc) return false;
+    let safeUrl: string;
+    try {
+      safeUrl = normalizeHttpsUrl(url);
+    } catch {
+      return false;
+    }
+    void wc.loadURL(safeUrl).catch(() => undefined);
+    return true;
+  }
+
   // --- Bounds ---
 
   updateBounds(bounds: ContentBounds): void {

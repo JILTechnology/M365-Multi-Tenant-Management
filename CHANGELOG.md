@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.7 - 2026-11-05
+
+- Added a Browse tab to each tenant for opening pasted links in that tenant's signed-in session.
+- Made the address bar editable: click it, paste an HTTPS URL, and press Enter to open it in the current page.
+- Added Ctrl+9 to jump to the Browse tab.
+
 ## 0.1.6 - 2026-09-17
 
 - Restored native copy, paste, cut, select-all, and undo keyboard shortcuts.

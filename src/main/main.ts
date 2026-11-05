@@ -1058,6 +1058,9 @@ onTrusted(IPC_CHANNELS.CHECK_FOR_UPDATES, (event) => {
 onTrusted(IPC_CHANNELS.NAV_BACK, (event) => getManager(event)?.goBack());
 onTrusted(IPC_CHANNELS.NAV_FORWARD, (event) => getManager(event)?.goForward());
 onTrusted(IPC_CHANNELS.NAV_RELOAD, (event) => getManager(event)?.reload());
+handleTrusted(IPC_CHANNELS.NAV_NAVIGATE, (event, rawUrl: unknown) =>
+  typeof rawUrl === 'string' && (getManager(event)?.navigateTo(rawUrl) ?? false),
+);
 onTrusted(IPC_CHANNELS.OPEN_EXTENSION_POPUP, (event) =>
   getManager(event)?.openKeeperVault(),
 );
