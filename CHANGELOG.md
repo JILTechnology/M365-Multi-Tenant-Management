@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.12 - 2026-11-16
+
+- The sidebar shows each tenant's and tool's logo, taken from its own website, in place of
+  the colored dot. Sites without a usable icon (and `*.onmicrosoft.com` domains) keep the dot.
+  Icons are cached in `site-icons.json` in the app data folder and refreshed every 30 days.
+
 ## 0.1.11 - 2026-11-16
 
 - Updated Electron from 43.4.0 to 43.8.10 for its security fixes (sandbox, permission,

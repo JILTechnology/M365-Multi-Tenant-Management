@@ -4,6 +4,7 @@ import {
   dialog,
   ipcMain,
   powerMonitor,
+  session,
 } from 'electron';
 import type { IpcMainEvent, IpcMainInvokeEvent } from 'electron';
 import fs from 'node:fs/promises';
@@ -53,6 +54,7 @@ import {
 import { clearAuditEntries, getRecentAuditEntries, recordAudit } from './audit-log';
 import { createDiagnosticsReport } from './diagnostics';
 import { readExchangePowerShellEntries } from './exchange-powershell';
+import { getSiteIcon } from './site-icons';
 import {
   closeExchangeTerminals,
   openExchangeTerminal,
@@ -774,6 +776,20 @@ handleTrusted(IPC_CHANNELS.APP_CLAUDE_CONTROL_ACTIVE, () => claudeControlActive)
 handleTrusted(IPC_CHANNELS.EXCHANGE_POWERSHELL_TENANTS, () =>
   readExchangePowerShellEntries(app.getPath('userData')).map((entry) => entry.tenantId),
 );
+// The renderer names a configured tenant or tool, never a URL, so it can't direct fetches.
+// Icons download through an in-memory session that shares no cookies with tenant sessions.
+handleTrusted(IPC_CHANNELS.SITE_ICON_GET, (_event, rawKind: unknown, rawId: unknown) => {
+  const id = requireId(rawId, 'Item ID');
+  const site =
+    rawKind === 'tenant'
+      ? getTenants().find((tenant) => tenant.id === id)?.domain
+      : rawKind === 'tool'
+        ? getTools().find((tool) => tool.id === id)?.url
+        : undefined;
+  if (!site) return null;
+  const iconSession = session.fromPartition('site-icons');
+  return getSiteIcon(app.getPath('userData'), site, (url, init) => iconSession.fetch(url, init));
+});
 function requireTerminalSize(value: unknown, label: string): number {
   if (typeof value !== 'number' || !Number.isInteger(value) || value < 2 || value > 1000) {
     throw new Error(`${label} is invalid.`);

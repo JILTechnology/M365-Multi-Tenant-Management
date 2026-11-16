@@ -28,6 +28,9 @@ const electronAPI: ElectronAPI = {
   getExchangePowerShellTenantIds: (): Promise<string[]> =>
     ipcRenderer.invoke(IPC_CHANNELS.EXCHANGE_POWERSHELL_TENANTS),
 
+  getSiteIcon: (kind: 'tenant' | 'tool', id: string): Promise<string | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SITE_ICON_GET, kind, id),
+
   openTerminal: (tenantId: string, cols: number, rows: number): Promise<void> =>
     ipcRenderer.invoke(IPC_CHANNELS.TERMINAL_OPEN, tenantId, cols, rows),
 

@@ -158,6 +158,7 @@ export const IPC_CHANNELS = {
   APP_GET_VERSION: 'app:get-version',
   APP_CLAUDE_CONTROL_ACTIVE: 'app:claude-control-active',
   EXCHANGE_POWERSHELL_TENANTS: 'exchange-powershell:tenants',
+  SITE_ICON_GET: 'site-icon:get',
   TERMINAL_OPEN: 'terminal:open',
   TERMINAL_INPUT: 'terminal:input',
   TERMINAL_RESIZE: 'terminal:resize',
@@ -280,6 +281,7 @@ export interface ElectronAPI {
   getAppVersion(): Promise<string>;
   isClaudeControlActive(): Promise<boolean>;
   getExchangePowerShellTenantIds(): Promise<string[]>;
+  getSiteIcon(kind: 'tenant' | 'tool', id: string): Promise<string | null>;
   openTerminal(tenantId: string, cols: number, rows: number): Promise<void>;
   writeTerminal(tenantId: string, data: string): void;
   resizeTerminal(tenantId: string, cols: number, rows: number): void;

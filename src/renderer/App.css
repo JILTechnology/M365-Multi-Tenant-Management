@@ -185,6 +185,27 @@
   flex-shrink: 0;
 }
 
+/* Same footprint for a logo or the fallback dot, so names stay aligned. */
+.sidebar-item-mark {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Light tile keeps dark logos visible on the dark sidebar. */
+.sidebar-item-icon {
+  width: 22px;
+  height: 22px;
+  box-sizing: border-box;
+  padding: 2px;
+  border-radius: 5px;
+  background: #fff;
+  object-fit: contain;
+}
+
 .sidebar-item-text {
   display: flex;
   flex-direction: column;

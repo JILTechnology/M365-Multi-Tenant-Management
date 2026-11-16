@@ -24,6 +24,42 @@ interface SidebarProps {
   onOpenSettings: () => void;
 }
 
+// Icon lookups survive re-renders and collapsing; keyed by the site so an edit refetches.
+const siteIconRequests = new Map<string, Promise<string | null>>();
+const siteIcons = new Map<string, string | null>();
+
+function SiteIcon({ kind, id, site, color }: { kind: 'tenant' | 'tool'; id: string; site: string; color: string }) {
+  const key = `${kind}:${id}:${site}`;
+  const [icon, setIcon] = useState(() => siteIcons.get(key) ?? null);
+
+  useEffect(() => {
+    let current = true;
+    setIcon(siteIcons.get(key) ?? null);
+    let request = siteIconRequests.get(key);
+    if (!request) {
+      request = window.electronAPI.getSiteIcon(kind, id).catch(() => null);
+      siteIconRequests.set(key, request);
+    }
+    void request.then((value) => {
+      siteIcons.set(key, value);
+      if (current) setIcon(value);
+    });
+    return () => {
+      current = false;
+    };
+  }, [key, kind, id]);
+
+  return (
+    <span className="sidebar-item-mark">
+      {icon ? (
+        <img className="sidebar-item-icon" src={icon} alt="" onError={() => setIcon(null)} />
+      ) : (
+        <span className="sidebar-item-dot" style={{ backgroundColor: color }} />
+      )}
+    </span>
+  );
+}
+
 function getInitials(name: string): string {
   return name
     .split(/[\s\-_&]+/)
@@ -240,7 +276,7 @@ export default function Sidebar({
                 </span>
               ) : (
                 <>
-                  <span className="sidebar-item-dot" style={{ backgroundColor: '#f97316' }} />
+                  <SiteIcon kind="tool" id={tool.id} site={tool.url} color="#f97316" />
                   <div className="sidebar-item-text">
                     <span className="sidebar-item-name">{tool.label}</span>
                     <span className="sidebar-item-domain">{tool.url.replace('https://', '')}</span>
@@ -323,9 +359,11 @@ export default function Sidebar({
                   </span>
                 ) : (
                   <>
-                    <span
-                      className="sidebar-item-dot"
-                      style={{ backgroundColor: getTenantColor(tenant.id) }}
+                    <SiteIcon
+                      kind="tenant"
+                      id={tenant.id}
+                      site={tenant.domain}
+                      color={getTenantColor(tenant.id)}
                     />
                     <div className="sidebar-item-text">
                       <span className="sidebar-item-name">{tenant.name}</span>
