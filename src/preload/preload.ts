@@ -20,6 +20,9 @@ const electronAPI: ElectronAPI = {
   getAppVersion: (): Promise<string> =>
     ipcRenderer.invoke(IPC_CHANNELS.APP_GET_VERSION),
 
+  isClaudeControlActive: (): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.APP_CLAUDE_CONTROL_ACTIVE),
+
   getPreferences: () =>
     ipcRenderer.invoke(IPC_CHANNELS.PREFERENCES_GET),
 

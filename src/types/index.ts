@@ -129,7 +129,12 @@ export interface AppPreferences {
   hideOnLock: boolean;
   inactiveViewMinutes: number;
   maxLiveViews: number;
+  /** Opens a localhost-only browser control port so Claude can drive the app. Applies on restart. */
+  claudeControl: boolean;
 }
+
+/** Fixed so Claude's browser-control tool can always find the app. */
+export const CLAUDE_CONTROL_PORT = 9339;
 
 // --- View Key ---
 
@@ -151,6 +156,7 @@ export function makeToolViewKey(toolId: string): ViewKey {
 
 export const IPC_CHANNELS = {
   APP_GET_VERSION: 'app:get-version',
+  APP_CLAUDE_CONTROL_ACTIVE: 'app:claude-control-active',
   PREFERENCES_GET: 'preferences:get',
   PREFERENCES_UPDATE: 'preferences:update',
   TENANT_GET_ALL: 'tenant:get-all',
@@ -255,6 +261,7 @@ export interface DataChangeNotice {
 
 export interface ElectronAPI {
   getAppVersion(): Promise<string>;
+  isClaudeControlActive(): Promise<boolean>;
   getPreferences(): Promise<AppPreferences>;
   updatePreferences(preferences: AppPreferences): Promise<AppPreferences>;
   getTenants(): Promise<Tenant[]>;

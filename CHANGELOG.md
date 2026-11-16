@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.8 - 2026-11-16
+
+- Added an optional Claude Control setting (Settings > Claude Control) that opens a
+  local browser-control port (127.0.0.1:9339) so Claude can read and operate the
+  signed-in tenant portals. Off by default; applies after restarting the app.
+- Shows a red banner across the app while Claude Control is on.
+
 ## 0.1.7 - 2026-11-05
 
 - Added a Browse tab to each tenant for opening pasted links in that tenant's signed-in session.

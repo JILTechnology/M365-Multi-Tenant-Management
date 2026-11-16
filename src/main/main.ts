@@ -59,7 +59,7 @@ import {
   openExternalHttps,
 } from './electron-security';
 import { customPortalPartition, normalizeTenantDomain } from './url-policy';
-import { IPC_CHANNELS, PORTALS } from '../types/index';
+import { CLAUDE_CONTROL_PORT, IPC_CHANNELS, PORTALS } from '../types/index';
 import type {
   AppPreferences,
   BackupRequest,
@@ -84,6 +84,14 @@ const PENDING_RESTORE_TTL_MS = 5 * 60 * 1000;
 // M365 sign-in still depends on third-party cookies across Microsoft origins.
 app.commandLine.appendSwitch('disable-features', 'ThirdPartyCookieDeprecation');
 app.enableSandbox();
+
+// Opt-in: lets Claude's browser-control tool drive the app over the Chrome DevTools
+// Protocol. Chromium binds this port to 127.0.0.1 only. Read once at startup, so
+// toggling the setting takes effect after a restart.
+const claudeControlActive = getPreferences().claudeControl;
+if (claudeControlActive) {
+  app.commandLine.appendSwitch('remote-debugging-port', String(CLAUDE_CONTROL_PORT));
+}
 if (process.platform === 'win32') {
   app.setAppUserModelId(APP_USER_MODEL_ID);
 }
@@ -753,6 +761,7 @@ const createWindow = (): void => {
 // --- IPC handlers ---
 
 handleTrusted(IPC_CHANNELS.APP_GET_VERSION, () => app.getVersion());
+handleTrusted(IPC_CHANNELS.APP_CLAUDE_CONTROL_ACTIVE, () => claudeControlActive);
 handleTrusted(IPC_CHANNELS.PREFERENCES_GET, () => getPreferences());
 handleTrusted(IPC_CHANNELS.PREFERENCES_UPDATE, (_event, rawValue: unknown) => {
   const preferences = updatePreferences(validateAppPreferences(rawValue));

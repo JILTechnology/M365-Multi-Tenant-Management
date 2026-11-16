@@ -55,6 +55,7 @@ const configuration: PersistedConfiguration = {
     hideOnLock: true,
     inactiveViewMinutes: 15,
     maxLiveViews: 8,
+    claudeControl: false,
   },
 };
 
@@ -94,6 +95,25 @@ describe('configuration backups', () => {
     expect(migrated.tenants[0].id).toBe(configuration.tenants[0].id);
     expect(migrated.customPortals[0].id).toBe(configuration.customPortals[0].id);
     expect(migrated.preferences.hideOnLock).toBe(true);
+    expect(migrated.preferences.claudeControl).toBe(false);
+  });
+
+  it('keeps Claude control off for preferences saved before it existed', () => {
+    const older = structuredClone(configuration) as unknown as {
+      preferences: Record<string, unknown>;
+    };
+    delete older.preferences.claudeControl;
+
+    expect(validateConfiguration(older).preferences.claudeControl).toBe(false);
+  });
+
+  it('rejects a non-boolean Claude control preference', () => {
+    const invalid = structuredClone(configuration) as unknown as {
+      preferences: Record<string, unknown>;
+    };
+    invalid.preferences.claudeControl = 'yes';
+
+    expect(() => validateConfiguration(invalid)).toThrow();
   });
 
   it('rejects configuration from a newer unsupported schema', () => {

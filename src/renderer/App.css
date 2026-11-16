@@ -425,6 +425,22 @@
   min-width: 0;
 }
 
+/* --- Claude Control Banner --- */
+.claude-control-banner {
+  flex-shrink: 0;
+  padding: 0.4rem 0.85rem;
+  background: #b42318;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.settings-note {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  color: #5f6b76;
+}
+
 /* --- Active Context --- */
 
 .active-context {

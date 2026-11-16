@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
+import { CLAUDE_CONTROL_PORT } from '../../types/index';
 import type { AppPreferences, AuditEntry, DataActionResult } from '../../types/index';
 
 interface SettingsDialogProps {
   open: boolean;
   appVersion: string;
+  claudeControlActive: boolean;
   preferences: AppPreferences;
   onClose: () => void;
   onSave: (preferences: AppPreferences) => Promise<void>;
@@ -12,14 +14,14 @@ interface SettingsDialogProps {
 }
 
 const RELEASE_NOTES = [
-  'Restored copy, paste, cut, select-all, and undo keyboard shortcuts.',
-  'Added right-click editing actions in portals, app forms, and pop-up windows.',
-  'Kept the existing portal navigation and Keeper Vault menu actions.',
+  'Added an optional Claude Control setting so Claude can operate tenant portals in this app.',
+  'Claude Control is off by default, only accepts connections from this PC, and shows a red banner while on.',
 ];
 
 export default function SettingsDialog({
   open,
   appVersion,
+  claudeControlActive,
   preferences,
   onClose,
   onSave,
@@ -74,7 +76,11 @@ export default function SettingsDialog({
     setStatus('');
     try {
       await onSave(draft);
-      setStatus('Settings saved.');
+      setStatus(
+        draft.claudeControl !== claudeControlActive
+          ? 'Settings saved. Restart the app to apply the Claude control change.'
+          : 'Settings saved.',
+      );
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Unable to save settings.');
     } finally {
@@ -114,6 +120,22 @@ export default function SettingsDialog({
               />
               <span>Hide app windows when Windows locks</span>
             </label>
+          </section>
+
+          <section className="settings-section">
+            <h3>Claude Control</h3>
+            <label className="toggle-row">
+              <input
+                type="checkbox"
+                checked={draft.claudeControl}
+                onChange={(event) => setDraft({ ...draft, claudeControl: event.target.checked })}
+              />
+              <span>Let Claude operate this app (local port {CLAUDE_CONTROL_PORT})</span>
+            </label>
+            <p className="settings-note">
+              While on, any program running on this PC can control every signed-in tenant
+              session. Applies after restarting the app. Currently {claudeControlActive ? 'on' : 'off'}.
+            </p>
           </section>
 
           <section className="settings-section">

@@ -30,6 +30,7 @@ export const DEFAULT_APP_PREFERENCES: Readonly<AppPreferences> = {
   hideOnLock: true,
   inactiveViewMinutes: 15,
   maxLiveViews: 8,
+  claudeControl: false,
 };
 
 const SCRYPT_COST = 16_384;
@@ -314,7 +315,12 @@ export function validateAppPreferences(value: unknown): AppPreferences {
   const contentProtection =
     preferences.contentProtection ?? DEFAULT_APP_PREFERENCES.contentProtection;
   const hideOnLock = preferences.hideOnLock ?? DEFAULT_APP_PREFERENCES.hideOnLock;
-  if (typeof contentProtection !== 'boolean' || typeof hideOnLock !== 'boolean') {
+  const claudeControl = preferences.claudeControl ?? DEFAULT_APP_PREFERENCES.claudeControl;
+  if (
+    typeof contentProtection !== 'boolean' ||
+    typeof hideOnLock !== 'boolean' ||
+    typeof claudeControl !== 'boolean'
+  ) {
     throw new Error('The saved privacy preferences are invalid.');
   }
 
@@ -333,6 +339,7 @@ export function validateAppPreferences(value: unknown): AppPreferences {
       2,
       30,
     ),
+    claudeControl,
   };
 }
 

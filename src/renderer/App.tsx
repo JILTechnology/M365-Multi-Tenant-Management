@@ -36,6 +36,7 @@ const DEFAULT_PREFERENCES: AppPreferences = {
   hideOnLock: true,
   inactiveViewMinutes: 15,
   maxLiveViews: 8,
+  claudeControl: false,
 };
 
 function resolveTenantTab(
@@ -64,6 +65,7 @@ function App() {
   const [tools, setTools] = useState<ToolSite[]>([]);
   const [preferences, setPreferences] = useState<AppPreferences>(DEFAULT_PREFERENCES);
   const [appVersion, setAppVersion] = useState('');
+  const [claudeControlActive, setClaudeControlActive] = useState(false);
   const [activeTenantId, setActiveTenantId] = useState<string | null>(null);
   const [activeToolId, setActiveToolId] = useState<string | null>(null);
   const [activeTenantTabId, setActiveTenantTabId] = useState<TenantTabId>('admin');
@@ -113,6 +115,7 @@ function App() {
     void refreshTools();
     void refreshPreferences();
     void window.electronAPI.getAppVersion().then(setAppVersion);
+    void window.electronAPI.isClaudeControlActive().then(setClaudeControlActive);
   }, [
     refreshTenants,
     refreshCustomPortals,
@@ -472,6 +475,12 @@ function App() {
           onOpenSettings={() => setSettingsOpen(true)}
         />
         <div className="main-area">
+          {claudeControlActive && (
+            <div className="claude-control-banner" role="status">
+              Claude control is on: programs on this PC can operate every signed-in portal.
+              Turn it off in Settings when you are done.
+            </div>
+          )}
           {activeTenant && (
             <div
               className="active-context tenant-context"
@@ -523,6 +532,7 @@ function App() {
       <SettingsDialog
         open={settingsOpen}
         appVersion={appVersion}
+        claudeControlActive={claudeControlActive}
         preferences={preferences}
         onClose={() => setSettingsOpen(false)}
         onSave={handleSavePreferences}

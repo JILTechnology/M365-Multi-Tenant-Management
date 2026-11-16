@@ -14,6 +14,7 @@ describe('diagnostics report', () => {
         hideOnLock: true,
         inactiveViewMinutes: 15,
         maxLiveViews: 8,
+        claudeControl: false,
       },
       windowCount: 1,
       liveViewCount: 2,
