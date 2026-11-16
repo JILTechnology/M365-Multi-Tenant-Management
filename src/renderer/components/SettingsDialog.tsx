@@ -14,6 +14,7 @@ interface SettingsDialogProps {
 }
 
 const RELEASE_NOTES = [
+  'Updated Electron to 43.8.10 for its latest security fixes.',
   'Added an Exchange PowerShell tab for tenants set up with certificate sign-in; it opens inside the app already connected.',
   'Added an optional Claude Control setting so Claude can operate tenant portals in this app.',
 ];

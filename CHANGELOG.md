@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.11 - 2026-11-16
+
+- Updated Electron from 43.4.0 to 43.8.10 for its security fixes (sandbox, permission,
+  cookie, and protocol handler issues reported against earlier 43.x releases).
+- Updated the build and test tools to patched versions (Vite 8.3.8, Vitest 4.1.12).
+
 ## 0.1.10 - 2026-11-16
 
 - Exchange PowerShell now opens as a tab next to the portal tabs instead of a separate
