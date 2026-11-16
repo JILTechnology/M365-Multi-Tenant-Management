@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildExchangeTerminalArgs, parseExchangePowerShellEntries } from './exchange-powershell';
+import { buildExchangeConnectCommand, parseExchangePowerShellEntries } from './exchange-powershell';
 
 const entry = {
   tenantId: 'f3b1c2d4-1111-2222-3333-444455556666',
@@ -30,22 +30,13 @@ describe('exchange powershell entries', () => {
   });
 });
 
-describe('exchange terminal arguments', () => {
-  it('opens a titled wt tab that connects with the certificate', () => {
-    expect(buildExchangeTerminalArgs(entry, 'CCC Exchange')).toEqual([
-      'new-tab',
-      '--title',
-      'CCC Exchange',
-      'pwsh.exe',
-      '-NoExit',
-      '-Command',
+describe('exchange connect command', () => {
+  it('signs in with the app ID, certificate thumbprint, and organization', () => {
+    const command = buildExchangeConnectCommand(entry);
+    expect(command).toContain(
       'Connect-ExchangeOnline -AppId 0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d ' +
         '-CertificateThumbprint ABCDEF0123456789ABCDEF0123456789ABCDEF01 ' +
         '-Organization contoso.onmicrosoft.com -ShowBanner:$false',
-    ]);
-  });
-
-  it('strips characters wt.exe would treat as separators from the title', () => {
-    expect(buildExchangeTerminalArgs(entry, 'A; "B" Exchange')[2]).toBe('A B Exchange');
+    );
   });
 });

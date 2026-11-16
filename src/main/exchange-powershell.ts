@@ -51,13 +51,13 @@ export function readExchangePowerShellEntries(userDataPath: string): ExchangePow
   }
 }
 
-/** Arguments for wt.exe: a new tab running pwsh already connected to the tenant. */
-export function buildExchangeTerminalArgs(entry: ExchangePowerShellEntry, title: string): string[] {
-  const command =
+/** PowerShell that signs in to the tenant's Exchange Online with its certificate. */
+export function buildExchangeConnectCommand(entry: ExchangePowerShellEntry): string {
+  return (
+    `Write-Host 'Connecting to Exchange Online (${entry.organization})...'; ` +
     `Connect-ExchangeOnline -AppId ${entry.appId} ` +
     `-CertificateThumbprint ${entry.certificateThumbprint} ` +
-    `-Organization ${entry.organization} -ShowBanner:$false`;
-  // wt.exe treats ';' as a command separator, and quotes would break its parsing.
-  const safeTitle = title.replace(/[;"]/g, '').trim() || 'Exchange Online';
-  return ['new-tab', '--title', safeTitle, 'pwsh.exe', '-NoExit', '-Command', command];
+    `-Organization ${entry.organization} -ShowBanner:$false; ` +
+    `if ($?) { Write-Host 'Connected.' -ForegroundColor Green }`
+  );
 }

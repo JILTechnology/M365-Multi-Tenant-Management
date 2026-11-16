@@ -4,6 +4,7 @@ import TabBar from './components/TabBar';
 import NavBar from './components/NavBar';
 import SettingsDialog from './components/SettingsDialog';
 import BackupPasswordDialog from './components/BackupPasswordDialog';
+import ExchangeTerminal from './components/ExchangeTerminal';
 import {
   PORTAL_IDS,
   getCustomPortalId,
@@ -67,6 +68,8 @@ function App() {
   const [appVersion, setAppVersion] = useState('');
   const [claudeControlActive, setClaudeControlActive] = useState(false);
   const [exchangeTenantIds, setExchangeTenantIds] = useState<string[]>([]);
+  const [terminalActive, setTerminalActive] = useState(false);
+  const hideViewsRef = useRef(false);
   const [activeTenantId, setActiveTenantId] = useState<string | null>(null);
   const [activeToolId, setActiveToolId] = useState<string | null>(null);
   const [activeTenantTabId, setActiveTenantTabId] = useState<TenantTabId>('admin');
@@ -212,6 +215,12 @@ function App() {
 
   const sendBounds = useCallback(() => {
     if (!contentRef.current) return;
+    // Portal pages are native views drawn over the window; collapse them while a
+    // dialog or the PowerShell tab needs the content area.
+    if (hideViewsRef.current) {
+      window.electronAPI.updateLayout({ x: 0, y: 0, width: 0, height: 0 });
+      return;
+    }
     const rect = contentRef.current.getBoundingClientRect();
     window.electronAPI.updateLayout({
       x: Math.round(rect.x),
@@ -231,30 +240,35 @@ function App() {
   }, [sendBounds]);
 
   const modalOpen = settingsOpen || backupDialogOpen || restorePasswordOpen;
+  const terminalShown = Boolean(
+    terminalActive && activeTenantId && exchangeTenantIds.includes(activeTenantId),
+  );
+  const hideViews = modalOpen || terminalShown;
   useEffect(() => {
-    if (modalOpen) {
-      window.electronAPI.updateLayout({ x: 0, y: 0, width: 0, height: 0 });
-    } else {
-      requestAnimationFrame(sendBounds);
-    }
-  }, [modalOpen, sendBounds]);
+    hideViewsRef.current = hideViews;
+    requestAnimationFrame(sendBounds);
+  }, [hideViews, sendBounds]);
 
   const handleSelectTenant = useCallback((tenantId: string) => {
     const tabId = resolveTenantTab(tenantId, tenantLastTabs, customPortals);
     setActiveTenantId(tenantId);
     setActiveToolId(null);
     setActiveTenantTabId(tabId);
+    setTerminalActive(false);
+    void window.electronAPI.getExchangePowerShellTenantIds().then(setExchangeTenantIds);
     requestAnimationFrame(() => window.electronAPI.selectTenant(tenantId, tabId));
   }, [customPortals, tenantLastTabs]);
 
   const handleSelectTool = useCallback((toolId: string) => {
     setActiveToolId(toolId);
     setActiveTenantId(null);
+    setTerminalActive(false);
     requestAnimationFrame(() => window.electronAPI.selectTool(toolId));
   }, []);
 
   const handleSelectPortal = useCallback((portalId: PortalId) => {
     if (!activeTenantId) return;
+    setTerminalActive(false);
     setActiveTenantTabId(portalId);
     setTenantLastTabs((current) => ({ ...current, [activeTenantId]: portalId }));
     void window.electronAPI.setTenantLastTab(activeTenantId, portalId);
@@ -263,6 +277,7 @@ function App() {
 
   const handleSelectTenantTab = useCallback((tabId: TenantTabId) => {
     if (!activeTenantId) return;
+    setTerminalActive(false);
     setActiveTenantTabId(tabId);
     setTenantLastTabs((current) => ({ ...current, [activeTenantId]: tabId }));
     void window.electronAPI.setTenantLastTab(activeTenantId, tabId);
@@ -342,6 +357,7 @@ function App() {
     });
     await refreshCustomPortals();
     const tabId = makeCustomPortalTabId(portal.id);
+    setTerminalActive(false);
     setActiveTenantTabId(tabId);
     setTenantLastTabs((current) => ({ ...current, [activeTenantId]: tabId }));
     void window.electronAPI.setTenantLastTab(activeTenantId, tabId);
@@ -495,20 +511,6 @@ function App() {
               <span className="active-context-type">Active Tenant</span>
               <strong>{activeTenant.name}</strong>
               <span className="active-context-detail">{activeTenant.domain}</span>
-              {exchangeTenantIds.includes(activeTenant.id) && (
-                <button
-                  type="button"
-                  className="active-context-action"
-                  title="Open a PowerShell tab already signed in to this tenant's Exchange Online"
-                  onClick={() => {
-                    window.electronAPI.openExchangePowerShell(activeTenant.id).catch((error: unknown) => {
-                      window.alert(error instanceof Error ? error.message : 'Unable to open Exchange PowerShell.');
-                    });
-                  }}
-                >
-                  Exchange PowerShell
-                </button>
-              )}
             </div>
           )}
           {activeTool && (
@@ -524,14 +526,19 @@ function App() {
               activeTabId={activeTenantTabId}
               customPortals={activeTenantCustomPortals}
               onSelectTab={handleSelectTenantTab}
+              exchangeTab={exchangeTenantIds.includes(activeTenant.id) ? {
+                active: terminalShown,
+                onSelect: () => setTerminalActive(true),
+              } : undefined}
               onAddCustomPortal={handleAddCustomPortal}
               onUpdateCustomPortal={handleUpdateCustomPortal}
               onMoveCustomPortal={handleMoveCustomPortal}
               onRemoveCustomPortal={handleRemoveCustomPortal}
             />
           ) : null}
-          {hasActiveView ? <NavBar navState={navState} /> : null}
+          {hasActiveView && !terminalShown ? <NavBar navState={navState} /> : null}
           <div className="content-area" ref={contentRef}>
+            {terminalShown && activeTenant && <ExchangeTerminal tenantId={activeTenant.id} />}
             {!hasActiveView && (
               <div className="content-placeholder">
                 <p>

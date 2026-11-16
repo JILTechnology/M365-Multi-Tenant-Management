@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.10 - 2026-11-16
+
+- Exchange PowerShell now opens as a tab next to the portal tabs instead of a separate
+  Windows Terminal window. The session stays connected while you switch tabs or tenants.
+- Ctrl+C stops a running command (or copies when text is selected); Ctrl+V and right-click paste.
+
 ## 0.1.9 - 2026-11-16
 
 - Added an Exchange PowerShell button to the active tenant bar for tenants listed in

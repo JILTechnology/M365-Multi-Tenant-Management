@@ -10,6 +10,8 @@ interface TabBarProps {
   onUpdateCustomPortal: (id: string, label: string, url: string) => void | Promise<void>;
   onMoveCustomPortal: (id: string, direction: CustomPortalMoveDirection) => void | Promise<void>;
   onRemoveCustomPortal: (id: string) => void;
+  /** Present only for tenants set up for certificate-based Exchange PowerShell. */
+  exchangeTab?: { active: boolean; onSelect: () => void };
 }
 
 export default function TabBar({
@@ -20,6 +22,7 @@ export default function TabBar({
   onUpdateCustomPortal,
   onMoveCustomPortal,
   onRemoveCustomPortal,
+  exchangeTab,
 }: TabBarProps) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [label, setLabel] = useState('');
@@ -91,18 +94,27 @@ export default function TabBar({
           {PORTAL_IDS.map((portalId) => (
             <button
               key={portalId}
-              className={`tab-item ${portalId === activeTabId ? 'active' : ''}`}
+              className={`tab-item ${portalId === activeTabId && !exchangeTab?.active ? 'active' : ''}`}
               onClick={() => onSelectTab(portalId)}
             >
               {PORTALS[portalId].label}
             </button>
           ))}
+          {exchangeTab && (
+            <button
+              className={`tab-item ${exchangeTab.active ? 'active' : ''}`}
+              onClick={exchangeTab.onSelect}
+              title="PowerShell signed in to this tenant's Exchange Online"
+            >
+              Exchange PowerShell
+            </button>
+          )}
           {customPortals.map((portal, index) => {
             const tabId = makeCustomPortalTabId(portal.id);
             return (
               <div
                 key={portal.id}
-                className={`custom-tab-item ${tabId === activeTabId ? 'active' : ''}${portal.id === editingPortalId ? ' editing' : ''}`}
+                className={`custom-tab-item ${tabId === activeTabId && !exchangeTab?.active ? 'active' : ''}${portal.id === editingPortalId ? ' editing' : ''}`}
                 title={portal.url}
               >
                 <button

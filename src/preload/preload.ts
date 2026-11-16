@@ -12,6 +12,8 @@ import type {
   NavState,
   RestoreRequest,
   TenantInput,
+  TerminalDataEvent,
+  TerminalExitEvent,
   TenantTabId,
   ToolInput,
 } from '../types/index';
@@ -26,8 +28,26 @@ const electronAPI: ElectronAPI = {
   getExchangePowerShellTenantIds: (): Promise<string[]> =>
     ipcRenderer.invoke(IPC_CHANNELS.EXCHANGE_POWERSHELL_TENANTS),
 
-  openExchangePowerShell: (tenantId: string): Promise<void> =>
-    ipcRenderer.invoke(IPC_CHANNELS.EXCHANGE_POWERSHELL_OPEN, tenantId),
+  openTerminal: (tenantId: string, cols: number, rows: number): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.TERMINAL_OPEN, tenantId, cols, rows),
+
+  writeTerminal: (tenantId: string, data: string) =>
+    ipcRenderer.send(IPC_CHANNELS.TERMINAL_INPUT, tenantId, data),
+
+  resizeTerminal: (tenantId: string, cols: number, rows: number) =>
+    ipcRenderer.send(IPC_CHANNELS.TERMINAL_RESIZE, tenantId, cols, rows),
+
+  onTerminalData: (callback: (event: TerminalDataEvent) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: TerminalDataEvent) => callback(payload);
+    ipcRenderer.on(IPC_CHANNELS.TERMINAL_DATA, handler);
+    return () => { ipcRenderer.removeListener(IPC_CHANNELS.TERMINAL_DATA, handler); };
+  },
+
+  onTerminalExit: (callback: (event: TerminalExitEvent) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: TerminalExitEvent) => callback(payload);
+    ipcRenderer.on(IPC_CHANNELS.TERMINAL_EXIT, handler);
+    return () => { ipcRenderer.removeListener(IPC_CHANNELS.TERMINAL_EXIT, handler); };
+  },
 
   getPreferences: () =>
     ipcRenderer.invoke(IPC_CHANNELS.PREFERENCES_GET),

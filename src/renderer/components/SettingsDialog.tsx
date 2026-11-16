@@ -14,7 +14,7 @@ interface SettingsDialogProps {
 }
 
 const RELEASE_NOTES = [
-  'Added an Exchange PowerShell button for tenants set up with certificate sign-in; it opens a Windows Terminal tab already connected.',
+  'Added an Exchange PowerShell tab for tenants set up with certificate sign-in; it opens inside the app already connected.',
   'Added an optional Claude Control setting so Claude can operate tenant portals in this app.',
 ];
 

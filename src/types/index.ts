@@ -158,7 +158,11 @@ export const IPC_CHANNELS = {
   APP_GET_VERSION: 'app:get-version',
   APP_CLAUDE_CONTROL_ACTIVE: 'app:claude-control-active',
   EXCHANGE_POWERSHELL_TENANTS: 'exchange-powershell:tenants',
-  EXCHANGE_POWERSHELL_OPEN: 'exchange-powershell:open',
+  TERMINAL_OPEN: 'terminal:open',
+  TERMINAL_INPUT: 'terminal:input',
+  TERMINAL_RESIZE: 'terminal:resize',
+  TERMINAL_DATA: 'terminal:data',
+  TERMINAL_EXIT: 'terminal:exit',
   PREFERENCES_GET: 'preferences:get',
   PREFERENCES_UPDATE: 'preferences:update',
   TENANT_GET_ALL: 'tenant:get-all',
@@ -259,13 +263,28 @@ export interface DataChangeNotice {
   revision: number;
 }
 
+// --- Exchange PowerShell terminal ---
+
+export interface TerminalDataEvent {
+  tenantId: string;
+  data: string;
+}
+
+export interface TerminalExitEvent {
+  tenantId: string;
+}
+
 // --- Electron API (exposed to renderer via preload) ---
 
 export interface ElectronAPI {
   getAppVersion(): Promise<string>;
   isClaudeControlActive(): Promise<boolean>;
   getExchangePowerShellTenantIds(): Promise<string[]>;
-  openExchangePowerShell(tenantId: string): Promise<void>;
+  openTerminal(tenantId: string, cols: number, rows: number): Promise<void>;
+  writeTerminal(tenantId: string, data: string): void;
+  resizeTerminal(tenantId: string, cols: number, rows: number): void;
+  onTerminalData(callback: (event: TerminalDataEvent) => void): () => void;
+  onTerminalExit(callback: (event: TerminalExitEvent) => void): () => void;
   getPreferences(): Promise<AppPreferences>;
   updatePreferences(preferences: AppPreferences): Promise<AppPreferences>;
   getTenants(): Promise<Tenant[]>;

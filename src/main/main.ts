@@ -6,7 +6,6 @@ import {
   powerMonitor,
 } from 'electron';
 import type { IpcMainEvent, IpcMainInvokeEvent } from 'electron';
-import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -53,7 +52,13 @@ import {
 } from './configuration-backup';
 import { clearAuditEntries, getRecentAuditEntries, recordAudit } from './audit-log';
 import { createDiagnosticsReport } from './diagnostics';
-import { buildExchangeTerminalArgs, readExchangePowerShellEntries } from './exchange-powershell';
+import { readExchangePowerShellEntries } from './exchange-powershell';
+import {
+  closeExchangeTerminals,
+  openExchangeTerminal,
+  resizeExchangeTerminal,
+  writeExchangeTerminal,
+} from './exchange-terminal';
 import { installApplicationEditMenu } from './editing-menu';
 import {
   configureRemoteSession,
@@ -735,6 +740,7 @@ const createWindow = (): void => {
 
   const manager = new TenantViewManager(mainWindow, createWindow);
   managers.set(mainWindow.id, manager);
+  const webContentsId = mainWindow.webContents.id;
 
   mainWindow.on('close', () => {
     const bounds = mainWindow.getNormalBounds();
@@ -750,6 +756,7 @@ const createWindow = (): void => {
   mainWindow.on('closed', () => {
     manager.dispose();
     managers.delete(mainWindow.id);
+    closeExchangeTerminals(webContentsId);
     windowsHiddenForLock.delete(mainWindow.id);
   });
 
@@ -767,7 +774,22 @@ handleTrusted(IPC_CHANNELS.APP_CLAUDE_CONTROL_ACTIVE, () => claudeControlActive)
 handleTrusted(IPC_CHANNELS.EXCHANGE_POWERSHELL_TENANTS, () =>
   readExchangePowerShellEntries(app.getPath('userData')).map((entry) => entry.tenantId),
 );
-handleTrusted(IPC_CHANNELS.EXCHANGE_POWERSHELL_OPEN, (_event, rawId: unknown) => {
+function requireTerminalSize(value: unknown, label: string): number {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 2 || value > 1000) {
+    throw new Error(`${label} is invalid.`);
+  }
+  return value;
+}
+
+// Keystrokes such as Enter or Space are whitespace-only, so requireString doesn't fit.
+function requireTerminalInput(value: unknown): string {
+  if (typeof value !== 'string' || value.length === 0 || value.length > 1024 * 1024) {
+    throw new Error('Terminal input is invalid.');
+  }
+  return value;
+}
+
+handleTrusted(IPC_CHANNELS.TERMINAL_OPEN, (event, rawId: unknown, rawCols: unknown, rawRows: unknown) => {
   const id = requireId(rawId, 'Tenant ID');
   const tenant = getTenants().find((item) => item.id === id);
   const entry = readExchangePowerShellEntries(app.getPath('userData')).find(
@@ -776,20 +798,29 @@ handleTrusted(IPC_CHANNELS.EXCHANGE_POWERSHELL_OPEN, (_event, rawId: unknown) =>
   if (!tenant || !entry) {
     throw new Error('Exchange PowerShell is not set up for this tenant.');
   }
-  const terminal = spawn('wt.exe', buildExchangeTerminalArgs(entry, `${tenant.name} Exchange`), {
-    detached: true,
-    stdio: 'ignore',
-  });
-  terminal.on('error', (error) => {
-    addAudit({
-      action: 'exchange-powershell.open',
-      outcome: 'failed',
-      target: tenant.name,
-      detail: error.message,
-    });
-  });
-  terminal.unref();
+  openExchangeTerminal(
+    event.sender,
+    id,
+    entry,
+    requireTerminalSize(rawCols, 'Terminal columns'),
+    requireTerminalSize(rawRows, 'Terminal rows'),
+  );
   addAudit({ action: 'exchange-powershell.open', outcome: 'success', target: tenant.name });
+});
+onTrusted(IPC_CHANNELS.TERMINAL_INPUT, (event, rawId: unknown, rawData: unknown) => {
+  writeExchangeTerminal(
+    event.sender,
+    requireId(rawId, 'Tenant ID'),
+    requireTerminalInput(rawData),
+  );
+});
+onTrusted(IPC_CHANNELS.TERMINAL_RESIZE, (event, rawId: unknown, rawCols: unknown, rawRows: unknown) => {
+  resizeExchangeTerminal(
+    event.sender,
+    requireId(rawId, 'Tenant ID'),
+    requireTerminalSize(rawCols, 'Terminal columns'),
+    requireTerminalSize(rawRows, 'Terminal rows'),
+  );
 });
 handleTrusted(IPC_CHANNELS.PREFERENCES_GET, () => getPreferences());
 handleTrusted(IPC_CHANNELS.PREFERENCES_UPDATE, (_event, rawValue: unknown) => {
