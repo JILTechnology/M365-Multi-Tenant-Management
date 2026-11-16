@@ -482,6 +482,24 @@
   font-size: 0.9rem;
 }
 
+.active-context-action {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 0.25rem 0.65rem;
+  border: 1px solid #147d64;
+  border-radius: 4px;
+  background: #fff;
+  color: #147d64;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.active-context-action:hover {
+  background: #147d64;
+  color: #fff;
+}
+
 .active-context-detail {
   min-width: 0;
   overflow: hidden;

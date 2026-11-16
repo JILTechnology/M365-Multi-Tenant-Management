@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.9 - 2026-11-16
+
+- Added an Exchange PowerShell button to the active tenant bar for tenants listed in
+  `exchange-powershell.json` (app data folder). It opens a Windows Terminal tab running
+  `Connect-ExchangeOnline` with that tenant's certificate, so no sign-in is needed.
+
 ## 0.1.8 - 2026-11-16
 
 - Added an optional Claude Control setting (Settings > Claude Control) that opens a

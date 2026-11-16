@@ -6,6 +6,7 @@ import {
   powerMonitor,
 } from 'electron';
 import type { IpcMainEvent, IpcMainInvokeEvent } from 'electron';
+import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -52,6 +53,7 @@ import {
 } from './configuration-backup';
 import { clearAuditEntries, getRecentAuditEntries, recordAudit } from './audit-log';
 import { createDiagnosticsReport } from './diagnostics';
+import { buildExchangeTerminalArgs, readExchangePowerShellEntries } from './exchange-powershell';
 import { installApplicationEditMenu } from './editing-menu';
 import {
   configureRemoteSession,
@@ -762,6 +764,33 @@ const createWindow = (): void => {
 
 handleTrusted(IPC_CHANNELS.APP_GET_VERSION, () => app.getVersion());
 handleTrusted(IPC_CHANNELS.APP_CLAUDE_CONTROL_ACTIVE, () => claudeControlActive);
+handleTrusted(IPC_CHANNELS.EXCHANGE_POWERSHELL_TENANTS, () =>
+  readExchangePowerShellEntries(app.getPath('userData')).map((entry) => entry.tenantId),
+);
+handleTrusted(IPC_CHANNELS.EXCHANGE_POWERSHELL_OPEN, (_event, rawId: unknown) => {
+  const id = requireId(rawId, 'Tenant ID');
+  const tenant = getTenants().find((item) => item.id === id);
+  const entry = readExchangePowerShellEntries(app.getPath('userData')).find(
+    (item) => item.tenantId === id,
+  );
+  if (!tenant || !entry) {
+    throw new Error('Exchange PowerShell is not set up for this tenant.');
+  }
+  const terminal = spawn('wt.exe', buildExchangeTerminalArgs(entry, `${tenant.name} Exchange`), {
+    detached: true,
+    stdio: 'ignore',
+  });
+  terminal.on('error', (error) => {
+    addAudit({
+      action: 'exchange-powershell.open',
+      outcome: 'failed',
+      target: tenant.name,
+      detail: error.message,
+    });
+  });
+  terminal.unref();
+  addAudit({ action: 'exchange-powershell.open', outcome: 'success', target: tenant.name });
+});
 handleTrusted(IPC_CHANNELS.PREFERENCES_GET, () => getPreferences());
 handleTrusted(IPC_CHANNELS.PREFERENCES_UPDATE, (_event, rawValue: unknown) => {
   const preferences = updatePreferences(validateAppPreferences(rawValue));

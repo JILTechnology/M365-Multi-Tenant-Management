@@ -157,6 +157,8 @@ export function makeToolViewKey(toolId: string): ViewKey {
 export const IPC_CHANNELS = {
   APP_GET_VERSION: 'app:get-version',
   APP_CLAUDE_CONTROL_ACTIVE: 'app:claude-control-active',
+  EXCHANGE_POWERSHELL_TENANTS: 'exchange-powershell:tenants',
+  EXCHANGE_POWERSHELL_OPEN: 'exchange-powershell:open',
   PREFERENCES_GET: 'preferences:get',
   PREFERENCES_UPDATE: 'preferences:update',
   TENANT_GET_ALL: 'tenant:get-all',
@@ -262,6 +264,8 @@ export interface DataChangeNotice {
 export interface ElectronAPI {
   getAppVersion(): Promise<string>;
   isClaudeControlActive(): Promise<boolean>;
+  getExchangePowerShellTenantIds(): Promise<string[]>;
+  openExchangePowerShell(tenantId: string): Promise<void>;
   getPreferences(): Promise<AppPreferences>;
   updatePreferences(preferences: AppPreferences): Promise<AppPreferences>;
   getTenants(): Promise<Tenant[]>;

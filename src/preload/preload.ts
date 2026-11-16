@@ -23,6 +23,12 @@ const electronAPI: ElectronAPI = {
   isClaudeControlActive: (): Promise<boolean> =>
     ipcRenderer.invoke(IPC_CHANNELS.APP_CLAUDE_CONTROL_ACTIVE),
 
+  getExchangePowerShellTenantIds: (): Promise<string[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.EXCHANGE_POWERSHELL_TENANTS),
+
+  openExchangePowerShell: (tenantId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.EXCHANGE_POWERSHELL_OPEN, tenantId),
+
   getPreferences: () =>
     ipcRenderer.invoke(IPC_CHANNELS.PREFERENCES_GET),
 

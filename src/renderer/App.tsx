@@ -66,6 +66,7 @@ function App() {
   const [preferences, setPreferences] = useState<AppPreferences>(DEFAULT_PREFERENCES);
   const [appVersion, setAppVersion] = useState('');
   const [claudeControlActive, setClaudeControlActive] = useState(false);
+  const [exchangeTenantIds, setExchangeTenantIds] = useState<string[]>([]);
   const [activeTenantId, setActiveTenantId] = useState<string | null>(null);
   const [activeToolId, setActiveToolId] = useState<string | null>(null);
   const [activeTenantTabId, setActiveTenantTabId] = useState<TenantTabId>('admin');
@@ -116,6 +117,7 @@ function App() {
     void refreshPreferences();
     void window.electronAPI.getAppVersion().then(setAppVersion);
     void window.electronAPI.isClaudeControlActive().then(setClaudeControlActive);
+    void window.electronAPI.getExchangePowerShellTenantIds().then(setExchangeTenantIds);
   }, [
     refreshTenants,
     refreshCustomPortals,
@@ -493,6 +495,20 @@ function App() {
               <span className="active-context-type">Active Tenant</span>
               <strong>{activeTenant.name}</strong>
               <span className="active-context-detail">{activeTenant.domain}</span>
+              {exchangeTenantIds.includes(activeTenant.id) && (
+                <button
+                  type="button"
+                  className="active-context-action"
+                  title="Open a PowerShell tab already signed in to this tenant's Exchange Online"
+                  onClick={() => {
+                    window.electronAPI.openExchangePowerShell(activeTenant.id).catch((error: unknown) => {
+                      window.alert(error instanceof Error ? error.message : 'Unable to open Exchange PowerShell.');
+                    });
+                  }}
+                >
+                  Exchange PowerShell
+                </button>
+              )}
             </div>
           )}
           {activeTool && (

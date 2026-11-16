@@ -14,8 +14,8 @@ interface SettingsDialogProps {
 }
 
 const RELEASE_NOTES = [
+  'Added an Exchange PowerShell button for tenants set up with certificate sign-in; it opens a Windows Terminal tab already connected.',
   'Added an optional Claude Control setting so Claude can operate tenant portals in this app.',
-  'Claude Control is off by default, only accepts connections from this PC, and shows a red banner while on.',
 ];
 
 export default function SettingsDialog({
