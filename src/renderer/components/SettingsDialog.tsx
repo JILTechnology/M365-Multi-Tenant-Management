@@ -14,6 +14,7 @@ interface SettingsDialogProps {
 }
 
 const RELEASE_NOTES = [
+  'The SharePoint tab now always opens the tenant\'s own SharePoint admin center, whatever its domain.',
   'The sidebar now shows each tenant and tool logo from its own website instead of a colored dot.',
   'Updated Electron to 43.8.10 for its latest security fixes.',
   'Added an Exchange PowerShell tab for tenants set up with certificate sign-in; it opens inside the app already connected.',

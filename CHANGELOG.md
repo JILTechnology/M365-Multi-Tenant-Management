@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.13 - 2026-11-17
+
+- The SharePoint tab opens through the Microsoft 365 admin center, which sends it to the
+  signed-in tenant's own SharePoint admin center. It no longer guesses the address from the
+  tenant's domain, which failed when the SharePoint name differs from every domain, and a
+  tenant's domain can now be its website domain without breaking the SharePoint tab.
+
 ## 0.1.12 - 2026-11-16
 
 - The sidebar shows each tenant's and tool's logo, taken from its own website, in place of

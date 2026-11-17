@@ -1,7 +1,7 @@
 {
   "name": "m365-multi-tenant-management",
   "productName": "M365 Multi Tenant Management",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "description": "Desktop app for MSPs to manage multiple Microsoft 365 tenants with isolated browser sessions",
   "main": ".vite/build/main.js",
   "private": true,

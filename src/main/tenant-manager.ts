@@ -13,7 +13,6 @@ import {
   makeCustomPortalTabId,
   makeTenantTabViewKey,
   makeToolViewKey,
-  resolvePortalUrl,
 } from '../types/index';
 import { getCustomPortals, getPreferences, getTenants, getTools } from './store';
 import { installEditingContextMenu } from './editing-menu';
@@ -91,7 +90,7 @@ export class TenantViewManager {
         if (!customPortal) return;
         this.createTenantCustomView(tenantId, tabId, customPortal.url);
       } else {
-        this.createTenantPortalView(tenantId, tabId, tenant.domain);
+        this.createTenantPortalView(tenantId, tabId);
       }
     }
 
@@ -375,7 +374,7 @@ export class TenantViewManager {
     });
   }
 
-  private createTenantPortalView(tenantId: string, portalId: PortalId, domain: string): void {
+  private createTenantPortalView(tenantId: string, portalId: PortalId): void {
     const partition = tenantPartition(tenantId);
     const key = makeTenantTabViewKey(tenantId, portalId);
     if (this.views.has(key)) return;
@@ -383,7 +382,7 @@ export class TenantViewManager {
     const view = this.createRemoteView(partition);
     this.views.set(key, view);
     void view.webContents
-      .loadURL(resolvePortalUrl(portalId, domain))
+      .loadURL(PORTALS[portalId].url)
       .catch(() => undefined);
   }
 

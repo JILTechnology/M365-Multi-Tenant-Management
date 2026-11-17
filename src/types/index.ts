@@ -15,11 +15,9 @@ export type PortalId =
   | 'security'
   | 'browse';
 
-type PortalUrl = string | ((domain: string) => string);
-
 export interface PortalDef {
   label: string;
-  url: PortalUrl;
+  url: string;
 }
 
 export const PORTALS: Record<PortalId, PortalDef> = {
@@ -30,11 +28,9 @@ export const PORTALS: Record<PortalId, PortalDef> = {
   teams: { label: 'Teams', url: 'https://admin.teams.microsoft.com' },
   sharepoint: {
     label: 'SharePoint',
-    url: (domain: string) => {
-      // Extract tenant prefix from onmicrosoft.com domain
-      const prefix = domain.replace('.onmicrosoft.com', '').split('.')[0];
-      return `https://${prefix}-admin.sharepoint.com`;
-    },
+    // The admin center redirects to the signed-in tenant's own <name>-admin.sharepoint.com,
+    // whose name often matches none of the tenant's domains (for example GoDaddy's NETORGFT...).
+    url: 'https://admin.microsoft.com/sharepoint?page=home&modern=true',
   },
   azure: { label: 'Azure', url: 'https://portal.azure.com' },
   security: { label: 'Security', url: 'https://security.microsoft.com' },
@@ -42,12 +38,6 @@ export const PORTALS: Record<PortalId, PortalDef> = {
 };
 
 export const PORTAL_IDS = Object.keys(PORTALS) as PortalId[];
-
-/** Resolve a portal URL — handles both static strings and tenant-specific builders */
-export function resolvePortalUrl(portalId: PortalId, domain: string): string {
-  const { url } = PORTALS[portalId];
-  return typeof url === 'function' ? url(domain) : url;
-}
 
 // --- Custom Portal Sites (tenant-specific definitions and sessions) ---
 
