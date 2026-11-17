@@ -1,0 +1,70 @@
+# Changelog
+
+## 0.1.13 - 2026-11-17
+
+- The SharePoint tab opens through the Microsoft 365 admin center, which sends it to the
+  signed-in tenant's own SharePoint admin center. It no longer guesses the address from the
+  tenant's domain, which failed when the SharePoint name differs from every domain, and a
+  tenant's domain can now be its website domain without breaking the SharePoint tab.
+
+## 0.1.12 - 2026-11-16
+
+- The sidebar shows each tenant's and tool's logo, taken from its own website, in place of
+  the colored dot. Sites without a usable icon (and `*.onmicrosoft.com` domains) keep the dot.
+  Icons are cached in `site-icons.json` in the app data folder and refreshed every 30 days.
+
+## 0.1.11 - 2026-11-16
+
+- Updated Electron from 43.4.0 to 43.8.10 for its security fixes (sandbox, permission,
+  cookie, and protocol handler issues reported against earlier 43.x releases).
+- Updated the build and test tools to patched versions (Vite 8.3.8, Vitest 4.1.12).
+
+## 0.1.10 - 2026-11-16
+
+- Exchange PowerShell now opens as a tab next to the portal tabs instead of a separate
+  Windows Terminal window. The session stays connected while you switch tabs or tenants.
+- Ctrl+C stops a running command (or copies when text is selected); Ctrl+V and right-click paste.
+
+## 0.1.9 - 2026-11-16
+
+- Added an Exchange PowerShell button to the active tenant bar for tenants listed in
+  `exchange-powershell.json` (app data folder). It opens a Windows Terminal tab running
+  `Connect-ExchangeOnline` with that tenant's certificate, so no sign-in is needed.
+
+## 0.1.8 - 2026-11-16
+
+- Added an optional Claude Control setting (Settings > Claude Control) that opens a
+  local browser-control port (127.0.0.1:9339) so Claude can read and operate the
+  signed-in tenant portals. Off by default; applies after restarting the app.
+- Shows a red banner across the app while Claude Control is on.
+
+## 0.1.7 - 2026-11-05
+
+- Added a Browse tab to each tenant for opening pasted links in that tenant's signed-in session.
+- Made the address bar editable: click it, paste an HTTPS URL, and press Enter to open it in the current page.
+- Added Ctrl+9 to jump to the Browse tab.
+
+## 0.1.6 - 2026-09-17
+
+- Restored native copy, paste, cut, select-all, and undo keyboard shortcuts.
+- Added editing actions to right-click menus in portal pages, app forms, and pop-up windows.
+- Kept existing portal navigation actions and disabled unavailable editing actions.
+
+## 0.1.5 - 2026-08-14
+
+- Added password-protected portable configuration backups and restore previews.
+- Added formal configuration migrations that retain stable session partition IDs.
+- Added an active tenant/tool banner and warnings for executable or script downloads.
+- Added optional capture protection and automatic window hiding on Windows lock.
+- Added bounded local activity history and redacted diagnostic exports.
+- Added inactive page eviction without clearing persistent browser sessions.
+- Added live synchronization between multiple app windows.
+- Added signed release, Authenticode verification, and in-place upgrade automation.
+- Added an in-app settings, version, and release notes view.
+
+## 0.1.4 - 2026-08-14
+
+- Hardened Electron navigation, permissions, popups, IPC validation, and session cleanup.
+- Added configuration-only backup and restore with stable session-binding checks.
+- Updated the Electron toolchain and enforced signed production packaging.
+- Fixed the Windows AppUserModelID used by installed and pinned shortcuts.

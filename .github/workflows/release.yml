@@ -1,0 +1,157 @@
+name: Signed Windows Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    env:
+      WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+      WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - name: Validate release version
+        shell: pwsh
+        run: |
+          $version = (Get-Content -Raw -LiteralPath package.json | ConvertFrom-Json).version
+          if ('${{ github.ref_type }}' -eq 'tag' -and '${{ github.ref_name }}' -ne "v$version") {
+            throw "Tag ${{ github.ref_name }} does not match package version $version."
+          }
+          "APP_VERSION=$version" | Add-Content -LiteralPath $env:GITHUB_ENV
+
+      - name: Materialize signing certificate
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_BASE64)) {
+            throw 'WINDOWS_CERTIFICATE_BASE64 is not configured.'
+          }
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_PASSWORD)) {
+            throw 'WINDOWS_CERTIFICATE_PASSWORD is not configured.'
+          }
+          $certificatePath = Join-Path $env:RUNNER_TEMP 'm365-code-signing.pfx'
+          [IO.File]::WriteAllBytes(
+            $certificatePath,
+            [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE_BASE64)
+          )
+          "WINDOWS_CERTIFICATE_FILE=$certificatePath" | Add-Content -LiteralPath $env:GITHUB_ENV
+
+      - name: Install exact dependencies
+        run: npm ci
+
+      - name: Typecheck and test
+        run: npm run verify
+
+      - name: Audit all dependencies
+        run: npm audit
+
+      - name: Build signed Squirrel release
+        run: npm run make
+
+      - name: Verify Authenticode signatures
+        shell: pwsh
+        run: |
+          $executables = @(
+            Get-ChildItem -LiteralPath out -Recurse -File -Filter '*.exe' |
+              Where-Object { $_.FullName -match '\\make\\|\\app-' }
+          )
+          if ($executables.Count -eq 0) {
+            throw 'No release executables were produced.'
+          }
+          foreach ($executable in $executables) {
+            $signature = Get-AuthenticodeSignature -LiteralPath $executable.FullName
+            if ($signature.Status -ne 'Valid') {
+              throw "Invalid Authenticode signature on $($executable.Name): $($signature.Status)"
+            }
+          }
+          Write-Host "Verified $($executables.Count) signed executable(s)."
+
+      - name: Find previous signed release
+        if: github.ref_type == 'tag'
+        id: previous
+        shell: pwsh
+        run: |
+          $releases = gh release list --limit 30 --json tagName,isDraft,isPrerelease | ConvertFrom-Json
+          $previous = $releases | Where-Object {
+            -not $_.isDraft -and -not $_.isPrerelease -and $_.tagName -ne '${{ github.ref_name }}'
+          } | Select-Object -First 1
+          if ($null -eq $previous) {
+            'available=false' | Add-Content -LiteralPath $env:GITHUB_OUTPUT
+            Write-Warning 'No previous release is available for the installer upgrade test.'
+            exit 0
+          }
+          $downloadDirectory = Join-Path $env:RUNNER_TEMP 'previous-release'
+          New-Item -ItemType Directory -Path $downloadDirectory | Out-Null
+          gh release download $previous.tagName --pattern '*Setup*.exe' --dir $downloadDirectory
+          $setups = @(Get-ChildItem -LiteralPath $downloadDirectory -File -Filter '*.exe')
+          if ($setups.Count -ne 1) {
+            throw "Expected one previous Setup executable, found $($setups.Count)."
+          }
+          'available=true' | Add-Content -LiteralPath $env:GITHUB_OUTPUT
+          "setup=$($setups[0].FullName)" | Add-Content -LiteralPath $env:GITHUB_OUTPUT
+
+      - name: Verify in-place upgrade preserves tenant sessions
+        if: github.ref_type == 'tag' && steps.previous.outputs.available == 'true'
+        shell: pwsh
+        run: |
+          $candidate = @(Get-ChildItem -LiteralPath 'out\make' -Recurse -File -Filter '*Setup.exe')
+          if ($candidate.Count -ne 1) {
+            throw "Expected one candidate Setup executable, found $($candidate.Count)."
+          }
+          & .\scripts\verify-squirrel-upgrade.ps1 `
+            -PreviousSetup '${{ steps.previous.outputs.setup }}' `
+            -CandidateSetup $candidate[0].FullName `
+            -CandidateVersion $env:APP_VERSION
+
+      - name: Upload signed artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: M365-Multi-Tenant-Management-${{ env.APP_VERSION }}
+          path: out/make/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish GitHub release
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        run: |
+          $assets = @(
+            Get-ChildItem -LiteralPath 'out\make' -Recurse -File |
+              Where-Object { $_.Extension -in '.exe', '.nupkg' -or $_.Name -eq 'RELEASES' }
+          )
+          if ($assets.Count -eq 0) {
+            throw 'No release assets were found.'
+          }
+          gh release create '${{ github.ref_name }}' @($assets.FullName) `
+            --verify-tag `
+            --generate-notes `
+            --title "M365 Multi Tenant Management $env:APP_VERSION"
+
+      - name: Remove signing certificate
+        if: always()
+        shell: pwsh
+        run: |
+          if ($env:WINDOWS_CERTIFICATE_FILE -and (Test-Path -LiteralPath $env:WINDOWS_CERTIFICATE_FILE)) {
+            Remove-Item -LiteralPath $env:WINDOWS_CERTIFICATE_FILE -Force
+          }

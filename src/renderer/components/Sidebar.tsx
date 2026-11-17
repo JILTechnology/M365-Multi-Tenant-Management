@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import type { Tenant, ToolSite } from '../../types/index';
 import AddTenantForm from './AddTenantForm';
 import EditTenantForm from './EditTenantForm';
+import { getTenantColor } from '../tenant-identity';
 
 interface SidebarProps {
   tenants: Tenant[];
@@ -12,21 +13,51 @@ interface SidebarProps {
   onToggleCollapse: () => void;
   onSelectTenant: (tenantId: string) => void;
   onSelectTool: (toolId: string) => void;
-  onAddTenant: (name: string, domain: string) => void;
-  onUpdateTenant: (id: string, name: string, domain: string) => void;
-  onRemoveTenant: (id: string) => void;
-  onClearSession: (id: string) => void;
-  onAddTool: (label: string, url: string) => void;
-  onRemoveTool: (id: string) => void;
+  onAddTenant: (name: string, domain: string) => void | Promise<void>;
+  onUpdateTenant: (id: string, name: string, domain: string) => void | Promise<void>;
+  onRemoveTenant: (id: string) => void | Promise<void>;
+  onClearSession: (id: string) => void | Promise<void>;
+  onAddTool: (label: string, url: string) => void | Promise<void>;
+  onRemoveTool: (id: string) => void | Promise<void>;
+  onBackupData: () => void | Promise<void>;
+  onRestoreData: () => void | Promise<void>;
+  onOpenSettings: () => void;
 }
 
-function getTenantColor(id: string): string {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) {
-    hash = id.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const hue = Math.abs(hash) % 360;
-  return `hsl(${hue}, 65%, 55%)`;
+// Icon lookups survive re-renders and collapsing; keyed by the site so an edit refetches.
+const siteIconRequests = new Map<string, Promise<string | null>>();
+const siteIcons = new Map<string, string | null>();
+
+function SiteIcon({ kind, id, site, color }: { kind: 'tenant' | 'tool'; id: string; site: string; color: string }) {
+  const key = `${kind}:${id}:${site}`;
+  const [icon, setIcon] = useState(() => siteIcons.get(key) ?? null);
+
+  useEffect(() => {
+    let current = true;
+    setIcon(siteIcons.get(key) ?? null);
+    let request = siteIconRequests.get(key);
+    if (!request) {
+      request = window.electronAPI.getSiteIcon(kind, id).catch(() => null);
+      siteIconRequests.set(key, request);
+    }
+    void request.then((value) => {
+      siteIcons.set(key, value);
+      if (current) setIcon(value);
+    });
+    return () => {
+      current = false;
+    };
+  }, [key, kind, id]);
+
+  return (
+    <span className="sidebar-item-mark">
+      {icon ? (
+        <img className="sidebar-item-icon" src={icon} alt="" onError={() => setIcon(null)} />
+      ) : (
+        <span className="sidebar-item-dot" style={{ backgroundColor: color }} />
+      )}
+    </span>
+  );
 }
 
 function getInitials(name: string): string {
@@ -54,6 +85,9 @@ export default function Sidebar({
   onClearSession,
   onAddTool,
   onRemoveTool,
+  onBackupData,
+  onRestoreData,
+  onOpenSettings,
 }: SidebarProps) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [showAddToolForm, setShowAddToolForm] = useState(false);
@@ -63,6 +97,8 @@ export default function Sidebar({
   const [searchQuery, setSearchQuery] = useState('');
   const [toolLabel, setToolLabel] = useState('');
   const [toolUrl, setToolUrl] = useState('');
+  const [toolError, setToolError] = useState('');
+  const [isAddingTool, setIsAddingTool] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const toolMenuRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -94,34 +130,50 @@ export default function Sidebar({
     }
   }, [collapsed]);
 
-  const handleAddSave = (name: string, domain: string) => {
-    onAddTenant(name, domain);
+  const handleAddSave = async (name: string, domain: string) => {
+    await onAddTenant(name, domain);
     setShowAddForm(false);
   };
 
-  const handleEditSave = (id: string, name: string, domain: string) => {
-    onUpdateTenant(id, name, domain);
+  const handleEditSave = async (id: string, name: string, domain: string) => {
+    await onUpdateTenant(id, name, domain);
     setEditingId(null);
   };
 
-  const handleRemove = (id: string) => {
+  const handleRemove = async (id: string) => {
     setMenuOpenId(null);
-    onRemoveTenant(id);
+    try {
+      await onRemoveTenant(id);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Unable to remove the tenant.');
+    }
   };
 
-  const handleAddToolSave = () => {
+  const handleAddToolSave = async () => {
     const trimmedLabel = toolLabel.trim();
     const trimmedUrl = toolUrl.trim();
-    if (!trimmedLabel || !trimmedUrl) return;
-    onAddTool(trimmedLabel, trimmedUrl);
-    setToolLabel('');
-    setToolUrl('');
-    setShowAddToolForm(false);
+    if (!trimmedLabel || !trimmedUrl || isAddingTool) return;
+    setToolError('');
+    setIsAddingTool(true);
+    try {
+      await onAddTool(trimmedLabel, trimmedUrl);
+      setToolLabel('');
+      setToolUrl('');
+      setShowAddToolForm(false);
+    } catch {
+      setToolError('Enter a valid HTTPS URL.');
+    } finally {
+      setIsAddingTool(false);
+    }
   };
 
-  const handleRemoveTool = (id: string) => {
+  const handleRemoveTool = async (id: string) => {
     setToolMenuOpenId(null);
-    onRemoveTool(id);
+    try {
+      await onRemoveTool(id);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Unable to remove the tool.');
+    }
   };
 
   // Filter tenants by search query
@@ -160,7 +212,10 @@ export default function Sidebar({
                 autoFocus
                 placeholder="Label"
                 value={toolLabel}
-                onChange={(e) => setToolLabel(e.target.value)}
+                onChange={(e) => {
+                  setToolLabel(e.target.value);
+                  setToolError('');
+                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Escape') {
                     setShowAddToolForm(false);
@@ -172,9 +227,12 @@ export default function Sidebar({
               <input
                 placeholder="URL (https://...)"
                 value={toolUrl}
-                onChange={(e) => setToolUrl(e.target.value)}
+                onChange={(e) => {
+                  setToolUrl(e.target.value);
+                  setToolError('');
+                }}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleAddToolSave();
+                  if (e.key === 'Enter') void handleAddToolSave();
                   if (e.key === 'Escape') {
                     setShowAddToolForm(false);
                     setToolLabel('');
@@ -182,13 +240,14 @@ export default function Sidebar({
                   }
                 }}
               />
+              {toolError && <div className="tab-add-error">{toolError}</div>}
               <div className="tenant-form-actions">
                 <button
                   className="btn-save"
-                  disabled={!toolLabel.trim() || !toolUrl.trim()}
-                  onClick={handleAddToolSave}
+                  disabled={!toolLabel.trim() || !toolUrl.trim() || isAddingTool}
+                  onClick={() => void handleAddToolSave()}
                 >
-                  Add
+                  {isAddingTool ? 'Adding...' : 'Add'}
                 </button>
                 <button
                   className="btn-cancel"
@@ -217,7 +276,7 @@ export default function Sidebar({
                 </span>
               ) : (
                 <>
-                  <span className="sidebar-item-dot" style={{ backgroundColor: '#f97316' }} />
+                  <SiteIcon kind="tool" id={tool.id} site={tool.url} color="#f97316" />
                   <div className="sidebar-item-text">
                     <span className="sidebar-item-name">{tool.label}</span>
                     <span className="sidebar-item-domain">{tool.url.replace('https://', '')}</span>
@@ -240,7 +299,7 @@ export default function Sidebar({
                   <div className="sidebar-item-menu" ref={toolMenuRef}>
                     <button
                       className="danger"
-                      onClick={() => handleRemoveTool(tool.id)}
+                      onClick={() => void handleRemoveTool(tool.id)}
                     >
                       Remove
                     </button>
@@ -285,7 +344,7 @@ export default function Sidebar({
               />
             </div>
           ) : (
-            <div key={tenant.id} className="sidebar-item-wrapper">
+            <div key={tenant.id} className={`sidebar-item-wrapper${menuOpenId === tenant.id ? ' menu-open' : ''}`}>
               <button
                 className={`sidebar-item ${tenant.id === activeTenantId ? 'active' : ''}`}
                 onClick={() => onSelectTenant(tenant.id)}
@@ -300,9 +359,11 @@ export default function Sidebar({
                   </span>
                 ) : (
                   <>
-                    <span
-                      className="sidebar-item-dot"
-                      style={{ backgroundColor: getTenantColor(tenant.id) }}
+                    <SiteIcon
+                      kind="tenant"
+                      id={tenant.id}
+                      site={tenant.domain}
+                      color={getTenantColor(tenant.id)}
                     />
                     <div className="sidebar-item-text">
                       <span className="sidebar-item-name">{tenant.name}</span>
@@ -335,14 +396,20 @@ export default function Sidebar({
                       <button
                         onClick={() => {
                           setMenuOpenId(null);
-                          onClearSession(tenant.id);
+                          void Promise.resolve(onClearSession(tenant.id)).catch((error) => {
+                            alert(
+                              error instanceof Error
+                                ? error.message
+                                : 'Unable to clear the tenant session.',
+                            );
+                          });
                         }}
                       >
                         Clear Session
                       </button>
                       <button
                         className="danger"
-                        onClick={() => handleRemove(tenant.id)}
+                        onClick={() => void handleRemove(tenant.id)}
                       >
                         Remove
                       </button>
@@ -381,6 +448,13 @@ export default function Sidebar({
           >
             {collapsed ? '+' : '+ Add Tenant'}
           </button>
+        )}
+        {!collapsed && (
+          <div className="sidebar-maintenance-actions">
+            <button onClick={() => void onBackupData()}>Backup Configuration</button>
+            <button onClick={() => void onRestoreData()}>Restore Configuration</button>
+            <button className="sidebar-settings-button" onClick={onOpenSettings}>Settings</button>
+          </div>
         )}
         {!collapsed && (
           <button

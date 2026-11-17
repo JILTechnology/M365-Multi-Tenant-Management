@@ -185,6 +185,27 @@
   flex-shrink: 0;
 }
 
+/* Same footprint for a logo or the fallback dot, so names stay aligned. */
+.sidebar-item-mark {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Light tile keeps dark logos visible on the dark sidebar. */
+.sidebar-item-icon {
+  width: 22px;
+  height: 22px;
+  box-sizing: border-box;
+  padding: 2px;
+  border-radius: 5px;
+  background: #fff;
+  object-fit: contain;
+}
+
 .sidebar-item-text {
   display: flex;
   flex-direction: column;
@@ -228,6 +249,32 @@
   color: #89b4fa;
 }
 
+.sidebar-maintenance-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.375rem;
+  margin-top: 0.5rem;
+}
+
+.sidebar-maintenance-actions button {
+  padding: 0.375rem 0.25rem;
+  border: 1px solid #45475a;
+  border-radius: 4px;
+  background: none;
+  color: #a6adc8;
+  cursor: pointer;
+  font-size: 0.72rem;
+}
+
+.sidebar-maintenance-actions button:hover {
+  border-color: #89b4fa;
+  color: #89b4fa;
+}
+
+.sidebar-maintenance-actions .sidebar-settings-button {
+  grid-column: 1 / -1;
+}
+
 .sidebar.collapsed .sidebar-add-btn {
   font-size: 1.1rem;
   font-weight: 600;
@@ -248,6 +295,11 @@
   position: relative;
   display: flex;
   align-items: center;
+  z-index: 0;
+}
+
+.sidebar-item-wrapper.menu-open {
+  z-index: 100;
 }
 
 .sidebar-item-wrapper .sidebar-item {
@@ -292,8 +344,7 @@
   background: #313244;
   border: 1px solid #45475a;
   border-radius: 6px;
-  overflow: hidden;
-  z-index: 10;
+  z-index: 1000;
   min-width: 100px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
@@ -395,17 +446,110 @@
   min-width: 0;
 }
 
+/* --- Claude Control Banner --- */
+.claude-control-banner {
+  flex-shrink: 0;
+  padding: 0.4rem 0.85rem;
+  background: #b42318;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.settings-note {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  color: #5f6b76;
+}
+
+/* --- Active Context --- */
+
+.active-context {
+  height: 44px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0 0.85rem;
+  border-left: 5px solid #147d64;
+  border-bottom: 1px solid #d7dde3;
+  background: #f2f7f5;
+  color: #17211f;
+  overflow: hidden;
+}
+
+.active-context-dot {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 10px;
+  border-radius: 50%;
+  background: #d85f18;
+}
+
+.active-context-type {
+  flex-shrink: 0;
+  color: #53615e;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.active-context strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.9rem;
+}
+
+.active-context-detail {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #52605e;
+  font-size: 0.78rem;
+}
+
+.tool-context {
+  border-left-color: #d85f18;
+  background: #fff6ef;
+}
+
 /* --- Tab Bar --- */
 
 .tab-bar {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e0e0e0;
+  position: relative;
+  z-index: 10;
+}
+
+.tab-row {
   height: 40px;
   flex-shrink: 0;
   display: flex;
   align-items: stretch;
-  background: #f8f9fa;
-  border-bottom: 1px solid #e0e0e0;
   padding: 0 0.5rem;
   gap: 2px;
+}
+
+.tab-scroll {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.tab-scroll::-webkit-scrollbar {
+  height: 4px;
 }
 
 .tab-item {
@@ -418,6 +562,7 @@
   cursor: pointer;
   border-bottom: 2px solid transparent;
   transition: color 0.15s, border-color 0.15s;
+  flex-shrink: 0;
 }
 
 .tab-item:hover {
@@ -428,6 +573,160 @@
 .tab-item.active {
   color: #0078d4;
   border-bottom-color: #0078d4;
+}
+
+.custom-tab-item {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  max-width: 280px;
+  flex-shrink: 0;
+  color: #666;
+  border-bottom: 2px solid transparent;
+}
+
+.custom-tab-item:hover {
+  background: #eee;
+  color: #333;
+}
+
+.custom-tab-item.active {
+  color: #0078d4;
+  border-bottom-color: #0078d4;
+}
+
+.custom-tab-item.editing {
+  background: #e8f2fb;
+}
+
+.custom-tab-label,
+.custom-tab-action,
+.tab-add-btn {
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.custom-tab-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0 0.45rem 0 1rem;
+  color: inherit;
+  font-size: 0.8rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.custom-tab-actions {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+}
+
+.custom-tab-action {
+  min-width: 22px;
+  padding: 0 0.25rem;
+  color: #888;
+  font-size: 0.7rem;
+  line-height: 1;
+}
+
+.custom-tab-action:hover:not(:disabled) {
+  background: #ddd;
+  color: #333;
+}
+
+.custom-tab-action:disabled {
+  color: #ccc;
+  cursor: default;
+}
+
+.tab-add-btn {
+  width: 32px;
+  height: 100%;
+  color: #555;
+  font-size: 1.05rem;
+  font-weight: 600;
+  border-bottom: 2px solid transparent;
+  flex-shrink: 0;
+}
+
+.tab-add-btn:hover,
+.tab-add-btn.active {
+  background: #eee;
+  color: #0078d4;
+}
+
+.tab-add-panel {
+  display: grid;
+  grid-template-columns: minmax(320px, 520px) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 50px;
+  padding: 0.5rem;
+  background: #fff;
+  border-top: 1px solid #e0e0e0;
+}
+
+.tab-add-fields {
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) minmax(180px, 1fr);
+  gap: 0.5rem;
+}
+
+.tab-add-panel input {
+  width: 100%;
+  padding: 0.45rem 0.5rem;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  color: #333;
+  font-size: 0.8rem;
+  outline: none;
+}
+
+.tab-add-panel input:focus {
+  border-color: #0078d4;
+}
+
+.tab-add-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.tab-add-error {
+  color: #a4262c;
+  font-size: 0.75rem;
+  line-height: 1.2;
+}
+
+.tab-add-save,
+.tab-add-cancel {
+  min-width: 68px;
+  padding: 0.4rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.tab-add-save {
+  border: none;
+  background: #0078d4;
+  color: #fff;
+  font-weight: 600;
+}
+
+.tab-add-save:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.tab-add-cancel {
+  border: 1px solid #d0d0d0;
+  background: #fff;
+  color: #555;
 }
 
 /* --- Nav Bar --- */
@@ -486,6 +785,24 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: text;
+}
+
+.nav-url-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.2rem 0.5rem;
+  background: #fff;
+  border: 1px solid #0078d4;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  color: #111;
+  outline: none;
+  font-family: inherit;
+}
+
+.nav-url-input.invalid {
+  border-color: #d13438;
 }
 
 .nav-loading-bar {
@@ -510,6 +827,17 @@
   position: relative;
 }
 
+.terminal-host {
+  position: absolute;
+  inset: 0;
+  padding: 6px 0 0 8px;
+  background: #0c0c0c;
+}
+
+.terminal-surface {
+  height: 100%;
+}
+
 .content-placeholder {
   display: flex;
   align-items: center;
@@ -517,4 +845,307 @@
   height: 100%;
   color: #999;
   font-size: 0.95rem;
+}
+
+/* --- Settings and Backup Dialogs --- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(18, 22, 27, 0.62);
+}
+
+.settings-dialog,
+.password-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(760px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: hidden;
+  border: 1px solid #c9d0d8;
+  border-radius: 8px;
+  background: #fff;
+  color: #20262d;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+}
+
+.password-dialog {
+  width: min(430px, 100%);
+  padding-bottom: 1rem;
+}
+
+.modal-header {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid #dfe3e8;
+  background: #f7f8fa;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  letter-spacing: 0;
+}
+
+.modal-header button,
+.settings-action-row button,
+.secondary-button,
+.primary-button,
+.danger-button {
+  min-height: 32px;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid #b9c1ca;
+  border-radius: 5px;
+  background: #fff;
+  color: #29313a;
+  cursor: pointer;
+  font-size: 0.78rem;
+}
+
+.modal-header button:hover,
+.settings-action-row button:hover,
+.secondary-button:hover {
+  border-color: #457b9d;
+  color: #245f83;
+}
+
+.modal-header button:disabled,
+.settings-action-row button:disabled,
+.secondary-button:disabled,
+.primary-button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.version-label {
+  display: block;
+  margin-top: 0.15rem;
+  color: #69747f;
+  font-size: 0.72rem;
+}
+
+.settings-scroll {
+  overflow-y: auto;
+}
+
+.settings-section {
+  padding: 1rem;
+  border-bottom: 1px solid #e3e7eb;
+}
+
+.settings-section h3 {
+  margin: 0 0 0.7rem;
+  color: #33404c;
+  font-size: 0.84rem;
+  letter-spacing: 0;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 34px;
+  color: #303943;
+  font-size: 0.82rem;
+}
+
+.toggle-row input {
+  width: 16px;
+  height: 16px;
+  accent-color: #116b5b;
+}
+
+.number-settings {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.number-settings label,
+.password-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  color: #4c5661;
+  font-size: 0.75rem;
+}
+
+.number-settings input,
+.password-fields input {
+  width: 100%;
+  min-height: 34px;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid #b9c1ca;
+  border-radius: 4px;
+  background: #fff;
+  color: #20262d;
+  font-size: 0.82rem;
+}
+
+.number-input-row {
+  display: grid;
+  grid-template-columns: 90px auto;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.settings-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.primary-button {
+  border-color: #126a5c;
+  background: #126a5c;
+  color: #fff;
+  font-weight: 600;
+}
+
+.primary-button:hover {
+  border-color: #0d5449;
+  background: #0d5449;
+}
+
+.compact-button {
+  min-width: 110px;
+}
+
+.settings-action-row .danger-button {
+  border-color: #b94a50;
+  color: #9f2f37;
+}
+
+.audit-list {
+  max-height: 250px;
+  overflow-y: auto;
+  border: 1px solid #dfe3e8;
+}
+
+.audit-row {
+  display: grid;
+  grid-template-columns: 150px 64px minmax(130px, 0.8fr) minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: center;
+  min-height: 34px;
+  padding: 0.4rem 0.55rem;
+  border-bottom: 1px solid #edf0f3;
+  font-size: 0.72rem;
+}
+
+.audit-row:last-child {
+  border-bottom: none;
+}
+
+.audit-row time,
+.audit-row > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  color: #66717c;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audit-outcome {
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.audit-outcome.success { color: #177245; }
+.audit-outcome.canceled { color: #725d18; }
+.audit-outcome.blocked,
+.audit-outcome.failed { color: #a52e38; }
+
+.audit-empty {
+  padding: 1rem;
+  color: #6a7580;
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.release-section ul {
+  margin: 0;
+  padding-left: 1.2rem;
+  color: #4b5661;
+  font-size: 0.78rem;
+  line-height: 1.6;
+}
+
+.settings-status {
+  padding: 0.65rem 1rem;
+  border-top: 1px solid #dfe3e8;
+  background: #f2f7f5;
+  color: #285648;
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.password-dialog > .toggle-row,
+.password-fields,
+.inline-warning,
+.modal-error {
+  margin: 1rem 1rem 0;
+}
+
+.password-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.inline-warning,
+.modal-error {
+  padding: 0.6rem 0.7rem;
+  border: 1px solid #d4a24d;
+  border-radius: 4px;
+  background: #fff8e8;
+  color: #6f4b0d;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.modal-error {
+  border-color: #d59aa0;
+  background: #fff2f3;
+  color: #8e2730;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin: 1rem 1rem 0;
+}
+
+@media (max-width: 900px) {
+  .modal-backdrop {
+    padding: 12px;
+  }
+
+  .settings-dialog,
+  .password-dialog {
+    max-height: calc(100vh - 24px);
+  }
+
+  .number-settings {
+    grid-template-columns: 1fr;
+  }
+
+  .audit-row {
+    grid-template-columns: 120px 60px minmax(0, 1fr);
+  }
+
+  .audit-row > span:last-child {
+    grid-column: 1 / -1;
+  }
 }

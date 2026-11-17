@@ -1,29 +1,78 @@
-import { BrowserWindow, Menu, WebContentsView, clipboard, session, shell } from 'electron';
+import { BrowserWindow, WebContentsView, clipboard, session } from 'electron';
 import {
+  type CustomPortalTabId,
   type PortalId,
+  type TenantTabId,
   type ViewKey,
   type ContentBounds,
   type NavState,
   IPC_CHANNELS,
-  PORTAL_IDS,
-  makeViewKey,
+  PORTALS,
+  getCustomPortalId,
+  isCustomPortalTabId,
+  makeCustomPortalTabId,
+  makeTenantTabViewKey,
   makeToolViewKey,
-  resolvePortalUrl,
 } from '../types/index';
-import { getTenants, getTools } from './store';
+import { getCustomPortals, getPreferences, getTenants, getTools } from './store';
+import { installEditingContextMenu } from './editing-menu';
+import {
+  configureRemoteSession,
+  hardenRemoteWebContents,
+  openExternalHttps,
+} from './electron-security';
+import {
+  customPortalPartition,
+  normalizeHttpsUrl,
+  tenantPartition,
+  toolPartition,
+} from './url-policy';
+
+export async function clearPersistentPartition(partition: string): Promise<void> {
+  const persistentSession = session.fromPartition(partition);
+  await persistentSession.closeAllConnections();
+  await persistentSession.clearData();
+}
+
+export function clearTenantPartition(tenantId: string): Promise<void> {
+  return clearPersistentPartition(tenantPartition(tenantId));
+}
+
+export function clearToolPartition(toolId: string): Promise<void> {
+  return clearPersistentPartition(toolPartition(toolId));
+}
+
+export function clearCustomPortalPartition(portalId: string): Promise<void> {
+  return clearPersistentPartition(`persist:custom-${portalId}`);
+}
 
 export class TenantViewManager {
   private views = new Map<ViewKey, WebContentsView>();
   private activeViewKey: ViewKey | null = null;
   private currentBounds: ContentBounds = { x: 0, y: 0, width: 0, height: 0 };
   private mainWindow: BrowserWindow;
+  private onNewWindow: () => void;
+  private lastUsed = new Map<ViewKey, number>();
+  private evictionTimer: ReturnType<typeof setInterval>;
 
-  constructor(mainWindow: BrowserWindow) {
+  constructor(mainWindow: BrowserWindow, onNewWindow: () => void) {
     this.mainWindow = mainWindow;
+    this.onNewWindow = onNewWindow;
+    this.evictionTimer = setInterval(() => this.evictInactiveViews(), 60_000);
+    this.evictionTimer.unref();
   }
 
-  selectView(tenantId: string, portalId: PortalId): void {
-    const key = makeViewKey(tenantId, portalId);
+  selectView(tenantId: string, tabId: TenantTabId): void {
+    const tenant = getTenants().find((item) => item.id === tenantId);
+    if (!tenant || typeof tabId !== 'string') return;
+    if (
+      !isCustomPortalTabId(tabId) &&
+      !Object.prototype.hasOwnProperty.call(PORTALS, tabId)
+    ) {
+      return;
+    }
+
+    const key = makeTenantTabViewKey(tenantId, tabId);
 
     if (this.activeViewKey && this.activeViewKey !== key) {
       const current = this.views.get(this.activeViewKey);
@@ -33,9 +82,16 @@ export class TenantViewManager {
     }
 
     if (!this.views.has(key)) {
-      const tenant = getTenants().find((t) => t.id === tenantId);
-      const domain = tenant?.domain ?? '';
-      this.createTenantViews(tenantId, domain);
+      if (isCustomPortalTabId(tabId)) {
+        const customPortalId = getCustomPortalId(tabId);
+        const customPortal = getCustomPortals().find(
+          (portal) => portal.id === customPortalId && portal.tenantId === tenantId
+        );
+        if (!customPortal) return;
+        this.createTenantCustomView(tenantId, tabId, customPortal.url);
+      } else {
+        this.createTenantPortalView(tenantId, tabId);
+      }
     }
 
     const view = this.views.get(key);
@@ -44,7 +100,9 @@ export class TenantViewManager {
       view.setVisible(true);
       view.webContents.focus();
       this.activeViewKey = key;
+      this.lastUsed.set(key, Date.now());
       this.sendNavState();
+      this.evictInactiveViews();
     }
   }
 
@@ -70,26 +128,37 @@ export class TenantViewManager {
       view.setVisible(true);
       view.webContents.focus();
       this.activeViewKey = key;
+      this.lastUsed.set(key, Date.now());
       this.sendNavState();
+      this.evictInactiveViews();
     }
   }
 
   // --- Keeper Vault ---
 
   openKeeperVault(): void {
+    const partition = 'persist:keeper-vault';
+    configureRemoteSession(session.fromPartition(partition), () => this.mainWindow);
     const popup = new BrowserWindow({
       parent: this.mainWindow,
       width: 420,
       height: 620,
       resizable: true,
       webPreferences: {
-        partition: 'persist:keeper-vault',
+        partition,
         contextIsolation: true,
         nodeIntegration: false,
+        sandbox: true,
+        webviewTag: false,
+        navigateOnDragDrop: false,
       },
     });
     popup.setMenuBarVisibility(false);
-    popup.loadURL('https://keepersecurity.com/vault/');
+    popup.setContentProtection(getPreferences().contentProtection);
+    hardenRemoteWebContents(popup.webContents);
+    void popup.loadURL('https://keepersecurity.com/vault/').catch(() => {
+      if (!popup.isDestroyed()) popup.close();
+    });
   }
 
   // --- Navigation ---
@@ -108,6 +177,19 @@ export class TenantViewManager {
     this.getActiveWebContents()?.reload();
   }
 
+  navigateTo(url: string): boolean {
+    const wc = this.getActiveWebContents();
+    if (!wc) return false;
+    let safeUrl: string;
+    try {
+      safeUrl = normalizeHttpsUrl(url);
+    } catch {
+      return false;
+    }
+    void wc.loadURL(safeUrl).catch(() => undefined);
+    return true;
+  }
+
   // --- Bounds ---
 
   updateBounds(bounds: ContentBounds): void {
@@ -120,17 +202,10 @@ export class TenantViewManager {
   // --- Cleanup ---
 
   destroyTenantViews(tenantId: string): void {
-    for (const portalId of PORTAL_IDS) {
-      const key = makeViewKey(tenantId, portalId);
-      const view = this.views.get(key);
-      if (view) {
-        if (this.activeViewKey === key) {
-          this.activeViewKey = null;
-        }
-        view.setVisible(false);
-        this.mainWindow.contentView.removeChildView(view);
-        view.webContents.close();
-        this.views.delete(key);
+    const tenantPrefix = `${tenantId}:`;
+    for (const [key, view] of Array.from(this.views.entries())) {
+      if (key.startsWith(tenantPrefix)) {
+        this.destroyView(key, view);
       }
     }
   }
@@ -139,33 +214,49 @@ export class TenantViewManager {
     const key = makeToolViewKey(toolId);
     const view = this.views.get(key);
     if (view) {
-      if (this.activeViewKey === key) {
-        this.activeViewKey = null;
+      this.destroyView(key, view);
+    }
+  }
+
+  destroyCustomPortalViews(customPortalId: string): void {
+    const keySuffix = `:${makeCustomPortalTabId(customPortalId)}`;
+    for (const [key, view] of Array.from(this.views.entries())) {
+      if (key.endsWith(keySuffix)) {
+        this.destroyView(key, view);
       }
-      view.setVisible(false);
-      this.mainWindow.contentView.removeChildView(view);
-      view.webContents.close();
-      this.views.delete(key);
     }
   }
 
   async clearTenantSession(tenantId: string): Promise<void> {
     this.destroyTenantViews(tenantId);
-    await session.fromPartition(`persist:tenant-${tenantId}`).clearStorageData();
+    await clearTenantPartition(tenantId);
   }
 
   destroyAll(): void {
     if (this.mainWindow.isDestroyed()) {
       this.views.clear();
+      this.lastUsed.clear();
       this.activeViewKey = null;
       return;
     }
-    for (const [key, view] of this.views) {
-      this.mainWindow.contentView.removeChildView(view);
-      view.webContents.close();
-      this.views.delete(key);
+    for (const [key, view] of Array.from(this.views.entries())) {
+      this.destroyView(key, view);
     }
+    this.lastUsed.clear();
     this.activeViewKey = null;
+  }
+
+  dispose(): void {
+    clearInterval(this.evictionTimer);
+    this.destroyAll();
+  }
+
+  applyPreferences(): void {
+    this.evictInactiveViews();
+  }
+
+  getLiveViewCount(): number {
+    return this.views.size;
   }
 
   // --- Private ---
@@ -173,6 +264,42 @@ export class TenantViewManager {
   private getActiveWebContents() {
     if (!this.activeViewKey) return null;
     return this.views.get(this.activeViewKey)?.webContents ?? null;
+  }
+
+  private destroyView(key: ViewKey, view: WebContentsView): void {
+    if (this.activeViewKey === key) {
+      this.activeViewKey = null;
+    }
+    view.setVisible(false);
+    this.mainWindow.contentView.removeChildView(view);
+    view.webContents.close();
+    this.views.delete(key);
+    this.lastUsed.delete(key);
+  }
+
+  private evictInactiveViews(): void {
+    const preferences = getPreferences();
+    const now = Date.now();
+    const inactiveThreshold = preferences.inactiveViewMinutes * 60_000;
+
+    for (const [key, view] of Array.from(this.views.entries())) {
+      if (key === this.activeViewKey) continue;
+      const lastUsed = this.lastUsed.get(key) ?? now;
+      if (now - lastUsed >= inactiveThreshold) {
+        this.destroyView(key, view);
+      }
+    }
+
+    const hiddenByAge = Array.from(this.views.entries())
+      .filter(([key]) => key !== this.activeViewKey)
+      .sort(
+        ([leftKey], [rightKey]) =>
+          (this.lastUsed.get(leftKey) ?? 0) - (this.lastUsed.get(rightKey) ?? 0),
+      );
+    while (this.views.size > preferences.maxLiveViews && hiddenByAge.length > 0) {
+      const [key, view] = hiddenByAge.shift()!;
+      this.destroyView(key, view);
+    }
   }
 
   private sendNavState(): void {
@@ -202,109 +329,105 @@ export class TenantViewManager {
 
   private setupZoom(view: WebContentsView): void {
     const wc = view.webContents;
-    wc.setVisualZoomLevelLimits(1, 5);
+    void wc.setVisualZoomLevelLimits(1, 5);
 
-    wc.on('dom-ready', () => {
-      wc.executeJavaScript(`
-        document.addEventListener('wheel', (e) => {
-          if (e.ctrlKey) {
-            e.preventDefault();
-            console.log('__zoom__:' + (e.deltaY > 0 ? 'out' : 'in'));
-          }
-        }, { passive: false });
-      `);
-    });
-
-    wc.on('console-message', (_event, _level, message) => {
-      if (message === '__zoom__:in') {
-        wc.setZoomLevel(wc.getZoomLevel() + 0.5);
-      } else if (message === '__zoom__:out') {
-        wc.setZoomLevel(wc.getZoomLevel() - 0.5);
-      }
-    });
-
-    wc.on('before-input-event', (_event, input) => {
+    wc.on('before-input-event', (event, input) => {
       if (!input.control || input.type !== 'keyDown') return;
-      if (input.key === '=' || input.key === '+') {
+      if (input.key.toLowerCase() === 'n') {
+        event.preventDefault();
+        this.onNewWindow();
+      } else if (input.key === '=' || input.key === '+') {
+        event.preventDefault();
         wc.setZoomLevel(wc.getZoomLevel() + 0.5);
       } else if (input.key === '-') {
+        event.preventDefault();
         wc.setZoomLevel(wc.getZoomLevel() - 0.5);
       } else if (input.key === '0') {
+        event.preventDefault();
         wc.setZoomLevel(0);
       }
     });
   }
 
   private setupContextMenu(view: WebContentsView): void {
-    view.webContents.on('context-menu', () => {
-      const wc = view.webContents;
-      const url = wc.getURL();
-
-      Menu.buildFromTemplate([
-        { label: 'Back', enabled: wc.canGoBack(), click: () => wc.goBack() },
-        { label: 'Forward', enabled: wc.canGoForward(), click: () => wc.goForward() },
-        { type: 'separator' },
-        { label: 'Reload', click: () => wc.reload() },
-        { type: 'separator' },
-        { label: 'Copy URL', click: () => clipboard.writeText(url) },
-        { label: 'Open in External Browser', click: () => shell.openExternal(url) },
-        { type: 'separator' },
-        { label: 'Keeper Vault', click: () => this.openKeeperVault() },
-      ]).popup();
+    const wc = view.webContents;
+    installEditingContextMenu(wc, {
+      window: this.mainWindow,
+      additionalItems: () => {
+        const url = wc.getURL();
+        return [
+          { label: 'Back', enabled: wc.canGoBack(), click: () => wc.goBack() },
+          { label: 'Forward', enabled: wc.canGoForward(), click: () => wc.goForward() },
+          { type: 'separator' },
+          { label: 'Reload', click: () => wc.reload() },
+          { type: 'separator' },
+          { label: 'Copy URL', click: () => clipboard.writeText(url) },
+          {
+            label: 'Open in External Browser',
+            enabled: url.startsWith('https://'),
+            click: () => void openExternalHttps(url).catch(() => undefined),
+          },
+          { type: 'separator' },
+          { label: 'Keeper Vault', click: () => this.openKeeperVault() },
+        ];
+      },
     });
   }
 
-  private createTenantViews(tenantId: string, domain: string): void {
-    const partition = `persist:tenant-${tenantId}`;
+  private createTenantPortalView(tenantId: string, portalId: PortalId): void {
+    const partition = tenantPartition(tenantId);
+    const key = makeTenantTabViewKey(tenantId, portalId);
+    if (this.views.has(key)) return;
 
-    for (const portalId of PORTAL_IDS) {
-      const key = makeViewKey(tenantId, portalId);
-      if (this.views.has(key)) continue;
+    const view = this.createRemoteView(partition);
+    this.views.set(key, view);
+    void view.webContents
+      .loadURL(PORTALS[portalId].url)
+      .catch(() => undefined);
+  }
 
-      const view = new WebContentsView({
-        webPreferences: {
-          partition,
-          contextIsolation: true,
-          nodeIntegration: false,
-        },
-      });
+  private createTenantCustomView(tenantId: string, tabId: CustomPortalTabId, url: string): void {
+    const key = makeTenantTabViewKey(tenantId, tabId);
+    if (this.views.has(key)) return;
 
-      view.setVisible(false);
-      view.setBounds(this.currentBounds);
-      this.mainWindow.contentView.addChildView(view);
-      view.webContents.loadURL(resolvePortalUrl(portalId, domain));
-
-      this.setupZoom(view);
-      this.setupNavEvents(view);
-      this.setupContextMenu(view);
-
-      this.views.set(key, view);
-    }
+    const portalId = getCustomPortalId(tabId);
+    const safeUrl = normalizeHttpsUrl(url, 'Custom portal URL');
+    const partition = customPortalPartition(tenantId, portalId, safeUrl);
+    const view = this.createRemoteView(partition);
+    this.views.set(key, view);
+    void view.webContents.loadURL(safeUrl).catch(() => undefined);
   }
 
   private createToolView(toolId: string, url: string): void {
     const key = makeToolViewKey(toolId);
     if (this.views.has(key)) return;
 
-    const partition = `persist:tool-${toolId}`;
+    const safeUrl = normalizeHttpsUrl(url, 'Tool URL');
+    const view = this.createRemoteView(toolPartition(toolId));
+    this.views.set(key, view);
+    void view.webContents.loadURL(safeUrl).catch(() => undefined);
+  }
 
+  private createRemoteView(partition: string): WebContentsView {
+    configureRemoteSession(session.fromPartition(partition), () => this.mainWindow);
     const view = new WebContentsView({
       webPreferences: {
         partition,
         contextIsolation: true,
         nodeIntegration: false,
+        sandbox: true,
+        webviewTag: false,
+        navigateOnDragDrop: false,
       },
     });
 
+    hardenRemoteWebContents(view.webContents);
     view.setVisible(false);
     view.setBounds(this.currentBounds);
     this.mainWindow.contentView.addChildView(view);
-    view.webContents.loadURL(url);
-
     this.setupZoom(view);
     this.setupNavEvents(view);
     this.setupContextMenu(view);
-
-    this.views.set(key, view);
+    return view;
   }
 }
